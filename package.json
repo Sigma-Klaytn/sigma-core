@@ -8,9 +8,10 @@
     },
     "scripts": {
         "compile": "truffle compile",
-        "test": "concurrently --success first --kill-others \"ganache-cli -l 80000000 -q -k constantinople\" \"truffle test\"",
-        "deploy:baobab": "truffle deploy --network kasBaobab --reset",
-        "deploy:cypress": "truffle deploy --network kasCypress --reset",
+        "test": "truffle test",
+        "deploy:kasBaobab": "truffle deploy --network kasBaobab --reset",
+        "deploy:baobab": "truffle deploy --network baobab --reset",
+        "deploy:kasCypress": "truffle deploy --network kasCypress --reset",
         "deploy:local": "truffle deploy --network development"
     },
     "author": "",
