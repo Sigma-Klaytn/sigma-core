@@ -1,3 +1,4 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
 contract Mortal {
@@ -19,5 +20,11 @@ contract KlaytnGreeter is Mortal {
     /* 주(Main) 함수 */
     function greet() public view returns (string memory) {
         return greeting;
+    }
+    /* 테스트를 위해 새로 추가된 함수입니다 */
+    function setGreet(string memory _greeting) public {
+        // 소유자(owner)만 greeting 메세지를 수정할 수 있습니다
+        require(msg.sender == owner, "Only owner is allowed.");
+        greeting = _greeting;
     }
 }
