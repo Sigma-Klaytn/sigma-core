@@ -10,6 +10,7 @@
         "compile": "truffle compile",
         "test:local": "truffle test --network development",
         "test:baobab": "truffle test --network baobab",
+        "test:mainnet": "truffle test --network kasCypress",
         "deploy:kasBaobab": "truffle deploy --network kasBaobab --reset",
         "deploy:baobab": "truffle deploy --network baobab --reset",
         "deploy:kasCypress": "truffle deploy --network kasCypress --reset",
@@ -18,9 +19,11 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
+        "@openzeppelin/contracts": "^4.5.0",
         "caver-js": "^1.8.0",
         "caver-js-ext-kas": "^1.9.0",
         "dotenv": "^16.0.0",
+        "ethers": "^5.6.1",
         "truffle-hdwallet-provider-klaytn": "^1.4.2"
     },
     "devDependencies": {

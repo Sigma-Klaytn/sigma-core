@@ -7,4 +7,6 @@ interface IVotingKSP {
     function refixBoosting(uint lockPeriodRequested) external;
     function claimReward() external;
     function compoundReward() external;
+        function lockedKSP(address account) external view returns(uint256);
+
 }

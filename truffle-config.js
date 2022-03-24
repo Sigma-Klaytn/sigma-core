@@ -85,7 +85,7 @@ module.exports = {
             },
             network_id: '8217', //Klaytn baobab testnet's network id
             gas: '8500000',
-            gasPrice: null
+            gasPrice: '25000000000'
         },
         baobab: {
             provider: () => {
