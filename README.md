@@ -32,7 +32,13 @@ Use the scripts below on the command line to deploy, test, compile code.
 | npm run deploy:kasBaobab  | Deploy contract on baobab (testnet) using KAS                         |
 | npm run deploy:kasCypress | Deploy contract on cypress (mainnet) using KAS                        |
 | npm run deploy:local      | Deploy contracts on local blockchain. (need to run ganache-cli first) |
-| npm run test              | test smart contract codes                                             |
+| npm run test:local        | test smart contract codes on local                                    |
+| npm run test:baobab       | test smart contract codes on testnet                                  |
+| npm run test:mainnet      | test smart contract codes on mainnet                                  |
+
+"test:local": "truffle test --network development",
+"test:baobab": "truffle test --network baobab",
+"test:mainnet": "truffle test --network kasCypress",
 
 ## Editor Setting
 
