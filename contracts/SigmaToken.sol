@@ -18,7 +18,7 @@ contract SigmaToken is IKIP7, Ownable {
         emit Transfer(address(0), msg.sender, 0);
     }
 
-     /**
+    /**
         @notice Approve contracts to mint and renounce ownership
         @dev In production the only minters should be `LpDepositor` and `StakingSigKSPVault`
              Addresses are given via dynamic array to allow extra minters during testing
@@ -31,14 +31,22 @@ contract SigmaToken is IKIP7, Ownable {
         renounceOwnership();
     }
 
-    function approve(address _spender, uint256 _value) external override returns (bool) {
+    function approve(address _spender, uint256 _value)
+        external
+        override
+        returns (bool)
+    {
         allowance[msg.sender][_spender] = _value;
         emit Approval(msg.sender, _spender, _value);
         return true;
     }
 
     /** shared logic for transfer and transferFrom */
-    function _transfer(address _from, address _to, uint256 _value) internal {
+    function _transfer(
+        address _from,
+        address _to,
+        uint256 _value
+    ) internal {
         require(balanceOf[_from] >= _value, "Insufficient balance");
         balanceOf[_from] -= _value;
         balanceOf[_to] += _value;
@@ -51,7 +59,11 @@ contract SigmaToken is IKIP7, Ownable {
         @param _value The amount to be transferred
         @return Success boolean
      */
-    function transfer(address _to, uint256 _value) public override returns (bool) {
+    function transfer(address _to, uint256 _value)
+        public
+        override
+        returns (bool)
+    {
         _transfer(msg.sender, _to, _value);
         return true;
     }
@@ -67,13 +79,12 @@ contract SigmaToken is IKIP7, Ownable {
         address _from,
         address _to,
         uint256 _value
-    )
-        public
-        override
-        returns (bool)
-    {
-        require(allowance[_from][msg.sender] >= _value, "Insufficient allowance");
-        if (allowance[_from][msg.sender] != type(uint).max) {
+    ) public override returns (bool) {
+        require(
+            allowance[_from][msg.sender] >= _value,
+            "Insufficient allowance"
+        );
+        if (allowance[_from][msg.sender] != type(uint256).max) {
             allowance[_from][msg.sender] -= _value;
         }
         _transfer(_from, _to, _value);

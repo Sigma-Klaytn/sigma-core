@@ -33,3 +33,18 @@ Use the scripts below on the command line to deploy, test, compile code.
 | npm run deploy:kasCypress | Deploy contract on cypress (mainnet) using KAS                        |
 | npm run deploy:local      | Deploy contracts on local blockchain. (need to run ganache-cli first) |
 | npm run test              | test smart contract codes                                             |
+
+## Editor Setting
+
+```sh
+npm install --save-dev prettier prettier-plugin-solidity
+```
+
+Set setting.json in VSCode.
+
+```
+"solidity.formatter": "prettier", // This is the default so it might be missing.
+"[solidity]": {
+    "editor.defaultFormatter": "JuanBlanco.solidity"
+}
+```
