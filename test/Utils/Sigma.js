@@ -16,6 +16,7 @@ const MockERC20 = artifacts.require('MockERC20');
 const DepositingVault = artifacts.require('DepositingVault');
 const Vault = artifacts.require('Vault');
 const KSPVault = artifacts.require('KSPVault');
+const MockVotingKSP = artifacts.require('MockVotingKSP');
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -36,14 +37,20 @@ async function makeKSPVault(kspaddress, opts = {}) {
     return await KSPVault.new(kspaddress);
 }
 
+async function makeMockVotingKSP(kspToken, opts = {}) {
+    return await MockVotingKSP.new(kspToken);
+}
+
 module.exports = {
     MockERC20,
     DepositingVault,
     Vault,
     KSPVault,
+    MockVotingKSP,
 
     makeErc20Token,
     makeDepositingVault,
     makeVault,
-    makeKSPVault
+    makeKSPVault,
+    makeMockVotingKSP
 };

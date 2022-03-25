@@ -118,7 +118,7 @@ contract('Vault', function (accounts) {
             });
 
             expectEvent.inTransaction(receipt, depositingContract, 'Withdraw', {
-                id: withdrawableVault
+                withdidrawer: depositingContract.address
             });
         });
     });
