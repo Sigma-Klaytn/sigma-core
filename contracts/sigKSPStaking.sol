@@ -4,8 +4,10 @@ pragma solidity ^0.8.9;
 import "./dependencies/Ownable.sol";
 import "./dependencies/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract SigKSPStaking is Ownable {
+contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -21,6 +23,8 @@ contract SigKSPStaking is Ownable {
     address[2] public rewardTokens;
     mapping(address => Reward) public rewardData;
 
+    address public rewardsDistribution;
+
     // user -> reward token -> amount
     mapping(address => mapping(address => uint256))
         public userRewardPerTokenPaid;
@@ -29,7 +33,7 @@ contract SigKSPStaking is Ownable {
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
 
-    uint256 public constant REWARDS_DURATION = 86400 * 7;
+    uint256 public REWARDS_DURATION = 86400 * 7;
 
     event RewardAdded(address indexed rewardsToken, uint256 reward);
     event Staked(address indexed user, uint256 amount);
@@ -39,16 +43,7 @@ contract SigKSPStaking is Ownable {
         address indexed rewardsToken,
         uint256 reward
     );
-
-    function setAddresses(
-        address _stakingToken,
-        address[2] memory _rewardTokens
-    ) external onlyOwner {
-        stakingToken = IERC20(_stakingToken); // SOLIDsex
-        rewardTokens = _rewardTokens; // SOLID, SEX
-
-        renounceOwnership();
-    }
+    event RewardsDurationUpdated(uint256 newDuration);
 
     function lastTimeRewardApplicable(address _rewardsToken)
         public
@@ -59,19 +54,23 @@ contract SigKSPStaking is Ownable {
         return block.timestamp < periodFinish ? block.timestamp : periodFinish;
     }
 
+    /**
+        @notice Calculate Reward per token. 
+        @param _rewardsToken address of reward token.
+     */
     function rewardPerToken(address _rewardsToken)
         public
         view
         returns (uint256)
     {
         if (totalSupply == 0) {
-            return rewardData[_rewardsToken].rewardPerTokenStored;
+            return rewardData[_rewardsToken].rewardPerTokenStored; //0
         }
         uint256 duration = lastTimeRewardApplicable(_rewardsToken) -
             rewardData[_rewardsToken].lastUpdateTime;
         uint256 pending = (duration *
             rewardData[_rewardsToken].rewardRate *
-            1e18) / totalSupply;
+            1e18) / totalSupply; //1e18 is for preventing rounding error
         return rewardData[_rewardsToken].rewardPerTokenStored + pending;
     }
 
@@ -94,7 +93,12 @@ contract SigKSPStaking is Ownable {
         return rewardData[_rewardsToken].rewardRate * REWARDS_DURATION;
     }
 
-    function stake(uint256 amount) external updateReward(msg.sender) {
+    function stake(uint256 amount)
+        external
+        nonReentrant
+        whenNotPaused
+        updateReward(msg.sender)
+    {
         require(amount > 0, "Cannot stake 0");
         totalSupply += amount;
         balanceOf[msg.sender] += amount;
@@ -102,7 +106,11 @@ contract SigKSPStaking is Ownable {
         emit Staked(msg.sender, amount);
     }
 
-    function withdraw(uint256 amount) public updateReward(msg.sender) {
+    function withdraw(uint256 amount)
+        public
+        nonReentrant
+        updateReward(msg.sender)
+    {
         require(amount > 0, "Cannot withdraw 0");
         totalSupply -= amount;
         balanceOf[msg.sender] -= amount;
@@ -110,17 +118,11 @@ contract SigKSPStaking is Ownable {
         emit Withdrawn(msg.sender, amount);
     }
 
-    function getReward() public updateReward(msg.sender) {
+    function getReward() public nonReentrant updateReward(msg.sender) {
         for (uint256 i; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             Reward storage r = rewardData[token];
-            if (block.timestamp + REWARDS_DURATION > r.periodFinish + 3600) {
-                // if last reward update was more than 1 hour ago, check for new rewards
-                uint256 unseen = IERC20(token).balanceOf(address(this)) -
-                    r.balance;
-                _notifyRewardAmount(r, unseen);
-                emit RewardAdded(token, unseen);
-            }
+
             uint256 reward = rewards[msg.sender][token];
             if (reward > 0) {
                 rewards[msg.sender][token] = 0;
@@ -136,19 +138,79 @@ contract SigKSPStaking is Ownable {
         getReward();
     }
 
-    function _notifyRewardAmount(Reward storage r, uint256 reward) internal {
+    /* ========== RESTRICTED FUNCTIONS ========== */
+
+    function setAddresses(
+        address _stakingToken,
+        address[2] memory _rewardTokens
+    ) external onlyOwner {
+        stakingToken = IERC20(_stakingToken); // sigKSP
+        rewardTokens = _rewardTokens; // KSP, SIG
+    }
+
+    function notifyRewardAmount(uint256 tokenIndex, uint256 reward)
+        external
+        onlyRewardsDistribution
+        updateReward(address(0))
+    {
+        address token = rewardTokens[tokenIndex];
+        Reward storage r = rewardData[token];
+
         if (block.timestamp >= r.periodFinish) {
             r.rewardRate = reward / REWARDS_DURATION;
         } else {
             uint256 remaining = r.periodFinish - block.timestamp;
             uint256 leftover = remaining * r.rewardRate;
+
             r.rewardRate = (reward + leftover) / REWARDS_DURATION;
         }
+
+        //Check the provided reward amount is not more than the balance in the contract.
+        //This keeps the reward rate in the right range, preventing overflows.
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        require(
+            r.rewardRate <= balance / REWARDS_DURATION,
+            "Provided rewards exceeded balance."
+        );
+
         r.lastUpdateTime = block.timestamp;
         r.periodFinish = block.timestamp + REWARDS_DURATION;
         r.balance += reward;
+
+        emit RewardAdded(token, reward);
     }
 
+    function setRewardsDuration(uint256 _rewardsDuration) external onlyOwner {
+        for (uint256 i; i < rewardTokens.length; i++) {
+            address token = rewardTokens[i];
+            Reward storage r = rewardData[token];
+
+            require(
+                block.timestamp > r.periodFinish,
+                "Previous rewards period must be complete before changing the duration for the new period"
+            );
+        }
+
+        REWARDS_DURATION = _rewardsDuration;
+        emit RewardsDurationUpdated(REWARDS_DURATION);
+    }
+
+    function setRewardsDistribution(address _rewardsDistribution)
+        external
+        onlyOwner
+    {
+        rewardsDistribution = _rewardsDistribution;
+    }
+
+    /* ========== MODIFIERS ========== */
+
+    modifier onlyRewardsDistribution() {
+        require(
+            msg.sender == rewardsDistribution,
+            "Caller is not RewardsDistribution contract"
+        );
+        _;
+    }
     modifier updateReward(address account) {
         for (uint256 i; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];

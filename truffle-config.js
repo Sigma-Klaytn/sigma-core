@@ -90,8 +90,13 @@ module.exports = {
         baobab: {
             provider: () => {
                 return new HDWalletProvider(
-                    process.env.PRIVATE_KEY,
-                    'https://api.baobab.klaytn.net:8651'
+                    [
+                        process.env.PRIVATE_KEY, // Get two addresses for test.
+                        process.env.PRIVATE_KEY_2
+                    ],
+                    'https://api.baobab.klaytn.net:8651',
+                    0,
+                    2
                 );
             },
             network_id: '1001', //Klaytn baobab testnet's network id
