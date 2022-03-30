@@ -32,7 +32,7 @@ contract('Vault', function (accounts) {
             // erc20Token = await makeErc20Token();
             // vault = await makeVault();
 
-            //Use pre-deployed one
+            //Use pre-deployed one on baobab.
             depositingContract = await DepositingVault.at(
                 `0xbbe34939eda3FD9876D0fAC713873dDd9E2eDb5a`
             );

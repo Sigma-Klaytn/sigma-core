@@ -8,8 +8,8 @@
     },
     "scripts": {
         "compile": "truffle compile",
-        "test:local": "truffle test --network development",
-        "test:baobab": "truffle test --network baobab",
+        "test:local": "truffle test --network development --show-events",
+        "test:baobab": "truffle test --network baobab --show-events",
         "test:mainnet": "truffle test --network kasCypress",
         "deploy:kasBaobab": "truffle deploy --network kasBaobab --reset",
         "deploy:baobab": "truffle deploy --network baobab --reset",

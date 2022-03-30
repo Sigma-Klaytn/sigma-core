@@ -44,6 +44,14 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
         uint256 reward
     );
     event RewardsDurationUpdated(uint256 newDuration);
+    //TODO: Need to be deleted
+    event UpdateReward(
+        address rewardToken,
+        uint256 rewardPerTokenStored,
+        address user,
+        uint256 earned,
+        uint256 userRewardPerTokenPaid
+    );
 
     function lastTimeRewardApplicable(address _rewardsToken)
         public
@@ -64,7 +72,7 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
         returns (uint256)
     {
         if (totalSupply == 0) {
-            return rewardData[_rewardsToken].rewardPerTokenStored; //0
+            return rewardData[_rewardsToken].rewardPerTokenStored;
         }
         uint256 duration = lastTimeRewardApplicable(_rewardsToken) -
             rewardData[_rewardsToken].lastUpdateTime;
@@ -122,7 +130,15 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
         for (uint256 i; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             Reward storage r = rewardData[token];
-
+            // reward 업데이트가 지금으로부터 한 시간 전 보다 더되었으면 새로운 리워드가 있는지 확인을 해라.
+            if (block.timestamp + REWARDS_DURATION > r.periodFinish + 3600) {
+                uint256 unseen = IERC20(token).balanceOf(address(this)) -
+                    r.balance;
+                if (unseen > 0) {
+                    _notifyRewardAmount(r, unseen);
+                    emit RewardAdded(token, unseen);
+                }
+            }
             uint256 reward = rewards[msg.sender][token];
             if (reward > 0) {
                 rewards[msg.sender][token] = 0;
@@ -148,36 +164,33 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
         rewardTokens = _rewardTokens; // KSP, SIG
     }
 
-    function notifyRewardAmount(uint256 tokenIndex, uint256 reward)
+    function updateRewardAmount()
         external
         onlyRewardsDistribution
         updateReward(address(0))
     {
-        address token = rewardTokens[tokenIndex];
-        Reward storage r = rewardData[token];
+        for (uint256 i; i < rewardTokens.length; i++) {
+            address token = rewardTokens[i];
+            Reward storage r = rewardData[token];
+            uint256 unseen = IERC20(token).balanceOf(address(this)) - r.balance;
+            if (unseen > 0) {
+                _notifyRewardAmount(r, unseen);
+                emit RewardAdded(token, unseen);
+            }
+        }
+    }
 
+    function _notifyRewardAmount(Reward storage r, uint256 reward) internal {
         if (block.timestamp >= r.periodFinish) {
             r.rewardRate = reward / REWARDS_DURATION;
         } else {
             uint256 remaining = r.periodFinish - block.timestamp;
             uint256 leftover = remaining * r.rewardRate;
-
             r.rewardRate = (reward + leftover) / REWARDS_DURATION;
         }
-
-        //Check the provided reward amount is not more than the balance in the contract.
-        //This keeps the reward rate in the right range, preventing overflows.
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        require(
-            r.rewardRate <= balance / REWARDS_DURATION,
-            "Provided rewards exceeded balance."
-        );
-
         r.lastUpdateTime = block.timestamp;
         r.periodFinish = block.timestamp + REWARDS_DURATION;
         r.balance += reward;
-
-        emit RewardAdded(token, reward);
     }
 
     function setRewardsDuration(uint256 _rewardsDuration) external onlyOwner {
@@ -190,7 +203,6 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
                 "Previous rewards period must be complete before changing the duration for the new period"
             );
         }
-
         REWARDS_DURATION = _rewardsDuration;
         emit RewardsDurationUpdated(REWARDS_DURATION);
     }
@@ -220,6 +232,13 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
                 rewards[account][token] = earned(account, token);
                 userRewardPerTokenPaid[account][token] = rewardData[token]
                     .rewardPerTokenStored;
+                emit UpdateReward(
+                    token,
+                    rewardData[token].rewardPerTokenStored,
+                    msg.sender,
+                    rewards[account][token],
+                    userRewardPerTokenPaid[account][token]
+                );
             }
         }
         _;
