@@ -286,6 +286,7 @@ contract SIGLocker is Ownable {
 
     /**
         @dev Increase the amount within a lock weight array over a given time period
+        TODO: 단순 배수가 아닌 방법으로 수정되어야함. 
      */
     function _increaseAmount(
         uint256[9362] storage _record,
