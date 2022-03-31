@@ -6,13 +6,17 @@ import "../dependencies/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract TokenSale is Ownable {
+    using SafeERC20 for IERC20;
+
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public SIG;
+    IERC20 public KUSDT;
     bool public tokensReleased;
-    uint256 totalToken;
-    uint256 totalDeposit;
-    mapping(address => DepositInfo) depositOf;
+    uint256 public totalSIGSupply;
+    uint256 public totalDeposit;
+    address public receiver;
+    mapping(address => DepositInfo) public depositOf;
 
     struct DepositInfo {
         uint256 amount;
@@ -20,22 +24,178 @@ contract TokenSale is Ownable {
         bool tokensClaimed;
     }
 
+    uint256 public phase1StartTs;
+    uint256 public phase2StartTs;
+    uint256 public phase2EndTs;
+
     uint256 public immutable HOUR = 3600;
+    uint256 public immutable TOTAL_SIG_SUPPLY = 70000000000000000000000000; //70M Token
+
+    event InitialInfoSet(
+        uint256 phase1StartTs,
+        uint256 phase2StartTs,
+        uint256 phase2EndTs,
+        address receiver
+    );
+
+    event Deposit(address user, uint256 amount);
+    event Withdrawal(address user, uint256 amount);
+    event SIGTokenReleased(uint256 at, uint256 releasedTokenAmount);
+    event AdminWithdraw(uint256 withdrawAmount);
+    event TokenClaimed(address user, uint256 amount);
 
     /**
         @notice Deposit KUSDT into this contract, only allowed during Phase1.
      */
-    function deposit(uint256 amount) external {}
+    function deposit(uint256 _amount) external {
+        require(block.timestamp > phase1StartTs, "Phase 1 did not start yet.");
+        require(
+            block.timestamp < phase2StartTs,
+            "Deposit period is already ended"
+        );
+        require(_amount > 0, "Amount should be bigger than 0");
+
+        //Transfer KUSDT
+        KUSDT.safeTransferFrom(msg.sender, address(this), _amount);
+
+        // Update User Deposit Balance
+        DepositInfo storage userDeposit = depositOf[msg.sender];
+        userDeposit.amount += _amount;
+
+        // Update Total Deposit
+        totalDeposit += _amount;
+
+        emit Deposit(msg.sender, _amount);
+    }
 
     /**
         @notice Withdraw KUSDT from this contract, allowed during Phase1 and Phase2.
      */
-    function withdraw(uint256 amount) external {}
+    function withdraw(uint256 _requiredAmount) external {
+        require(
+            block.timestamp < phase2EndTs,
+            "Withdraw period is already done."
+        );
+
+        require(
+            _requiredAmount > 0,
+            "Required amount of withdrawal should be bigger than 0"
+        );
+
+        DepositInfo storage userDeposit = depositOf[msg.sender];
+        require(userDeposit.amount > 0, "No funds available to withdraw");
+
+        uint256 withdrawableAmount = 0;
+        //Phase 1 일 때와 Phase 2 일 때를 구분해야 함.
+        if (block.timestamp > phase2StartTs) {
+            require(
+                userDeposit.withdrewAtPhase2 == false,
+                "Already withdrew fund. Withdrawal is only permitted once."
+            );
+
+            uint256 currentSlot = (phase2EndTs - block.timestamp) / HOUR;
+            uint256 totalSlot = (phase2EndTs - phase2StartTs) / HOUR;
+            uint256 withdrawablePortion = _getWithdrawablePortion(
+                currentSlot,
+                totalSlot
+            );
+
+            withdrawableAmount =
+                (userDeposit.amount * withdrawablePortion) /
+                1e18;
+            userDeposit.withdrewAtPhase2 = true;
+        } else {
+            withdrawableAmount = userDeposit.amount;
+        }
+
+        require(
+            _requiredAmount <= withdrawableAmount,
+            "You can't withdraw more than current withdrawable amount"
+        );
+
+        userDeposit.amount -= _requiredAmount;
+        totalDeposit -= _requiredAmount;
+
+        KUSDT.transfer(msg.sender, _requiredAmount);
+
+        emit Withdrawal(msg.sender, _requiredAmount);
+    }
 
     /**
         @notice Withdraw pro-rata allocated SIG tokens, only allowed at the end of the launch (after Phase2).
      */
-    function withdrawTokens() external {}
+    function withdrawTokens() external {
+        require(tokensReleased, "Token is not released yet");
+        require(
+            block.timestamp > phase2EndTs,
+            "You can't withdraw before phase 2 ends."
+        );
+
+        DepositInfo storage userDeposit = depositOf[msg.sender];
+        require(userDeposit.amount > 0, "No funds available to withdraw token");
+        require(!userDeposit.tokensClaimed, "Tokens are already claimed");
+
+        uint256 portion = _getWithdrawableTokenPortion(
+            userDeposit.amount,
+            totalDeposit
+        );
+        uint256 amount = (portion * TOTAL_SIG_SUPPLY) / 1e18;
+        require(amount != 0, "No withdrawable Token.");
+
+        SIG.safeTransfer(msg.sender, amount);
+
+        userDeposit.tokensClaimed = true;
+
+        emit TokenClaimed(msg.sender, amount);
+    }
+
+    /* ========== VIEW FUNCTIONS ========== */
+
+    function getWithdrawableAmount() external view returns (uint256) {
+        DepositInfo memory userDeposit = depositOf[msg.sender];
+        if (block.timestamp < phase2StartTs) {
+            return userDeposit.amount;
+        } else {
+            if (userDeposit.withdrewAtPhase2) {
+                return 0;
+            }
+
+            if (userDeposit.tokensClaimed) {
+                return 0;
+            }
+
+            uint256 currentSlot = (phase2EndTs - block.timestamp) / HOUR;
+            uint256 totalSlot = (phase2EndTs - phase2StartTs) / HOUR;
+            uint256 withdrawablePortion = _getWithdrawablePortion(
+                currentSlot,
+                totalSlot
+            );
+            return (userDeposit.amount * withdrawablePortion) / 1e18;
+        }
+    }
+
+    /* ========== INTERNAL FUNCTIONS ========== */
+
+    function _getWithdrawablePortion(uint256 _currentSlot, uint256 _totalSlot)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 portion = ((_currentSlot + 1) * 1e18) / _totalSlot;
+        if (portion < 1e18) {
+            return portion;
+        } else {
+            return 1e18;
+        }
+    }
+
+    function _getWithdrawableTokenPortion(
+        uint256 _depositAmount,
+        uint256 _totalDepositAmount
+    ) internal pure returns (uint256) {
+        uint256 portion = (_depositAmount * 1e18) / _totalDepositAmount;
+        return portion;
+    }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
@@ -44,15 +204,85 @@ contract TokenSale is Ownable {
         1) Total SIG distribution amount
         2) The phase start/end timestamps. 
      */
-    function setInitialInfo() external onlyOwner {}
+    function setInitialInfo(
+        uint256 _phase1StartTs,
+        uint256 _phase2StartTs,
+        uint256 _phase2EndTs,
+        address _SIG,
+        address _KUSDT,
+        address _receiver
+    ) external onlyOwner {
+        require(
+            block.timestamp < _phase1StartTs,
+            "Phase1 should start in the future."
+        );
+        require(
+            _phase1StartTs < _phase2StartTs,
+            "Phase2 should start after phase1"
+        );
+        require(
+            _phase2StartTs < _phase2EndTs,
+            "phase2StartTs should smaller than phase2EndTs"
+        );
+        require(
+            (_phase2EndTs - _phase2StartTs) > HOUR,
+            "Phase2 should be longer than 1 hour."
+        );
+        require(_receiver != address(0), "Invalid receiver address");
+
+        phase1StartTs = _phase1StartTs;
+        phase2StartTs = _phase2StartTs;
+        phase2EndTs = _phase2EndTs;
+        SIG = IERC20(_SIG);
+        KUSDT = IERC20(_KUSDT);
+        receiver = _receiver;
+
+        emit InitialInfoSet(
+            phase1StartTs,
+            phase2StartTs,
+            phase2EndTs,
+            _receiver
+        );
+    }
 
     /**
         @notice Withdraw the contract's KSUDT balance at the end of the launch.
      */
-    function adminWithdraw() external onlyOwner {}
+    function adminWithdraw() external onlyOwner {
+        require(
+            block.timestamp > phase2EndTs,
+            "Phase 2 should end to withdraw KUSDT Tokens."
+        );
+
+        uint256 balanceOfKUSDT = KUSDT.balanceOf(address(this));
+        require(balanceOfKUSDT > 0, "There is no withdrawable amount of KUSDT");
+
+        KUSDT.transfer(receiver, balanceOfKUSDT);
+
+        emit AdminWithdraw(balanceOfKUSDT);
+    }
 
     /**
         @notice Allows depositors to claim their share of the tokens.
      */
-    function releaseToken() external onlyOwner {}
+    function releaseToken() external onlyOwner {
+        require(tokensReleased == false, "Tokens are already released.");
+        require(
+            block.timestamp > phase2EndTs,
+            "Phase 2 should end to release SIG Tokens."
+        );
+
+        SIG.safeTransferFrom(msg.sender, address(this), TOTAL_SIG_SUPPLY);
+        tokensReleased = true;
+
+        emit SIGTokenReleased(block.timestamp, TOTAL_SIG_SUPPLY);
+    }
+
+    /**
+        @notice Change KUSDT receiver address
+     */
+    function setReceiver(address _receiver) external onlyOwner {
+        require(_receiver != address(0), "Invalid receiver address");
+        receiver = _receiver;
+    }
 }
