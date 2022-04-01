@@ -20,6 +20,7 @@ const MockVotingKSP = artifacts.require('MockVotingKSP');
 const KSPConverter = artifacts.require('KSPConverter');
 const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
+const TokenSale = artifacts.require('TokenSale');
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -36,8 +37,8 @@ async function makeDepositingVault(opts = {}) {
 async function makeVault(opts = {}) {
     return await Vault.new();
 }
-async function makeKSPVault(kspaddress, opts = {}) {
-    return await KSPVault.new(kspaddress);
+async function makeKSPVault(kspVotingAddress, kspTokenaddress, opts = {}) {
+    return await KSPVault.new(kspVotingAddress, kspTokenaddress);
 }
 
 async function makeMockVotingKSP(kspToken, opts = {}) {
@@ -56,6 +57,10 @@ async function makeSIGLocker(maxLockWeeks, sigToken, opts = {}) {
     return await SIGLocker.new(maxLockWeeks, sigToken);
 }
 
+async function makeTokenSale(opts = {}) {
+    return await TokenSale.new();
+}
+
 module.exports = {
     MockERC20,
     DepositingVault,
@@ -65,6 +70,7 @@ module.exports = {
     KSPConverter,
     SigKSPStaking,
     SIGLocker,
+    TokenSale,
 
     makeErc20Token,
     makeDepositingVault,
@@ -73,5 +79,6 @@ module.exports = {
     makeMockVotingKSP,
     makeKSPConverter,
     makeSigKSPStaking,
-    makeSIGLocker
+    makeSIGLocker,
+    makeTokenSale
 };

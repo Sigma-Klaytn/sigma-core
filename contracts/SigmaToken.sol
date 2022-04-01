@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 import "./dependencies/Ownable.sol";
-import "./interfaces/IKIP7.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract SigmaToken is IKIP7, Ownable {
+contract SigmaToken is IERC20, Ownable {
     string public constant name = "Sigma";
     string public constant symbol = "SIG";
     uint8 public constant decimals = 18;

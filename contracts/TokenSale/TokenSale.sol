@@ -44,6 +44,8 @@ contract TokenSale is Ownable {
     event AdminWithdraw(uint256 withdrawAmount);
     event TokenClaimed(address user, uint256 amount);
 
+    constructor() {}
+
     /**
         @notice Deposit KUSDT into this contract, only allowed during Phase1.
      */
@@ -86,7 +88,6 @@ contract TokenSale is Ownable {
         require(userDeposit.amount > 0, "No funds available to withdraw");
 
         uint256 withdrawableAmount = 0;
-        //Phase 1 일 때와 Phase 2 일 때를 구분해야 함.
         if (block.timestamp > phase2StartTs) {
             require(
                 userDeposit.withdrewAtPhase2 == false,
@@ -125,11 +126,12 @@ contract TokenSale is Ownable {
         @notice Withdraw pro-rata allocated SIG tokens, only allowed at the end of the launch (after Phase2).
      */
     function withdrawTokens() external {
-        require(tokensReleased, "Token is not released yet");
         require(
             block.timestamp > phase2EndTs,
-            "You can't withdraw before phase 2 ends."
+            "You can't withdraw tokens before phase 2 ends."
         );
+
+        require(tokensReleased, "Token is not released yet");
 
         DepositInfo storage userDeposit = depositOf[msg.sender];
         require(userDeposit.amount > 0, "No funds available to withdraw token");
@@ -152,6 +154,9 @@ contract TokenSale is Ownable {
     /* ========== VIEW FUNCTIONS ========== */
 
     function getWithdrawableAmount() external view returns (uint256) {
+        if (phase2EndTs < block.timestamp) {
+            return 0;
+        }
         DepositInfo memory userDeposit = depositOf[msg.sender];
         if (block.timestamp < phase2StartTs) {
             return userDeposit.amount;

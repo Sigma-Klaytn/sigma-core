@@ -37,8 +37,8 @@ module.exports = {
                                 'Basic ' +
                                 Buffer.from(
                                     process.env.KAS_ACCESSKEY_ID +
-                                        ':' +
-                                        process.env.KAS_SECRET_ACCESS_KEY
+                                    ':' +
+                                    process.env.KAS_SECRET_ACCESS_KEY
                                 ).toString('base64')
                         },
                         { name: 'x-chain-id', value: '1001' }
@@ -67,8 +67,8 @@ module.exports = {
                                 'Basic ' +
                                 Buffer.from(
                                     process.env.KAS_ACCESSKEY_ID +
-                                        ':' +
-                                        process.env.KAS_SECRET_ACCESS_KEY
+                                    ':' +
+                                    process.env.KAS_SECRET_ACCESS_KEY
                                 ).toString('base64')
                         },
                         { name: 'x-chain-id', value: '8217' }
@@ -91,7 +91,7 @@ module.exports = {
             provider: () => {
                 return new HDWalletProvider(
                     [
-                        process.env.PRIVATE_KEY, // Get two addresses for test.
+                        process.env.PRIVATE_KEY_3, // Get two addresses for test.
                         process.env.PRIVATE_KEY_2
                     ],
                     'https://api.baobab.klaytn.net:8651',

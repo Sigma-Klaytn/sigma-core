@@ -7,14 +7,17 @@ import "../interfaces/klayswap/IVotingKSP.sol";
 
 contract KSPVault {
     IVotingKSP public votingKSP;
+    IERC20 public KSP;
 
-    constructor(address _votingKSP) {
+    constructor(address _votingKSP, address _KSP) {
         votingKSP = IVotingKSP(_votingKSP);
+        KSP = IERC20(_KSP);
     }
 
     event LOCK_KSP(uint256 amount, uint256 lockPeriodRequested);
 
     function lockKSP(uint256 _amount, uint256 _lockPeriodRequested) external {
+        KSP.approve(address(votingKSP), type(uint256).max);
         votingKSP.lockKSP(_amount, _lockPeriodRequested);
         emit LOCK_KSP(_amount, _lockPeriodRequested);
     }

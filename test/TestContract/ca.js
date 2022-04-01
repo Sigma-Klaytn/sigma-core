@@ -16,7 +16,7 @@ const {
     bnMantissa,
     BN
 } = require('../Utils/JS');
-
+ㅇ;
 const IVotingKSP = artifacts.require('IVotingKSP');
 const MAX_UINT_256 = new BN(2).pow(new BN(256)).sub(new BN(1));
 
@@ -42,10 +42,11 @@ contract('KSPVault', function (accounts) {
 
             console.log('Prepare for tests...');
             // kspVault = await makeKSPVault(
-            //     '0x2F3713F388BC4b8b364a7A2d8D57c5Ff4E054830'
+            //     '0x2F3713F388BC4b8b364a7A2d8D57c5Ff4E054830',
+            //     '0xc6a2ad8cc6e4a7e08fc37cc5954be07d499e7654'
             // );
             kspVault = await KSPVault.at(
-                '0xd36Ea386CddFa64104e1341eF788390D90F00077'
+                '0x90f14218Da7aB6896CBBf691eb1Cb2E8B6BDB7A4'
             );
 
             //lockedKSP function 있는 KSPVault 0xab64562EDdD508995cbCC90e8103847729D94903
@@ -147,15 +148,13 @@ contract('KSPVault', function (accounts) {
             //     from: user
             // });
 
-            // console.log('22222', receipt2);
+            // [case 2] CA
+            // let receipt = await kspVault.lockKSP(1, 1555200000);
 
-            //[case ]] CA
-            // let receipt = await kspVault.lockKSP(1, 1555200000, { from: user });
-
-            // console.log(
-            //     'locked user lockckjlafsdjls;fj;laskdf',
-            //     (await kspVault.lockedKSP(user)).toString()
-            // );
+            console.log(
+                'locked user lockckjlafsdjls;fj;laskdf',
+                (await kspVault.lockedKSP(user)).toString()
+            );
 
             // console.log('11111', receipt);
         });
