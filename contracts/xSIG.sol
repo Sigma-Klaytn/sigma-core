@@ -9,19 +9,25 @@ contract xSIG is IERC20, Ownable {
 
     IERC20 public SIG;
     uint256 public lockingPeriod;
+    uint256 public pendingxSIG;
+    uint256 public pendingSIG;
 
     struct WithdrawInfo {
         uint256 unlockTime;
         uint256 xSIGAmount;
         uint256 SIGAmount;
-        bool isClaimed;
+        bool isWithdrawn;
     }
 
     mapping(address => WithdrawInfo[]) withdrawInfoOf;
 
+    event Unstake(uint256 RedeemedxSIG, uint256 sigQueued);
+    event ClaimUnlockedSIG(uint256 withdrawnSIG, uint256 burnedSIG);
+    event Stake(uint256 stakedSIG, uint256 mintedxSIG);
+
     /* ========== Token Related ========== */
 
-    string public constant name = "Sigma Compounding Token"; // Can be change
+    string public constant name = "Sigma Compounding Token"; // Can be modified.
     string public constant symbol = "xSIG";
     uint8 public constant decimals = 18;
     uint256 public override totalSupply;
@@ -91,33 +97,92 @@ contract xSIG is IERC20, Ownable {
         return true;
     }
 
+    //TODO: external?
+    /**
+        @notice Mint xSIG
+        @param amount The amount of tokens to be minted and sended to the receiver
+     */
+    function mint(uint256 amount) internal {
+        balanceOf[msg.sender] += amount;
+        totalSupply += amount;
+        emit Transfer(address(0), msg.sender, amount);
+    }
+
+    //TODO: external?
+    function burn(uint256 amount) internal {
+        balanceOf[msg.sender] -= amount;
+        totalSupply -= amount;
+        emit Transfer(msg.sender, address(0), amount);
+    }
+
     /* ========== External Function  ========== */
 
     /**
         @notice stake SIG for xSIG
         @param _amount The amount of SIG to deposit
      */
-    function stake(uint256 _amount) external {}
+    function stake(uint256 _amount) external {
+        require(_amount > 0, "Stake SIG amount should be bigger than 0");
+        SIG.transferFrom(msg.sender, address(this), _amount);
+        uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG - _amount;
+        uint256 xSIGAmount = totalSupply - pendingxSIG;
+
+        uint256 xSIGToGet;
+        if (sigAmount == 0) {
+            xSIGToGet = _amount;
+        } else {
+            xSIGToGet = (_amount * xSIGAmount * 1e18) / sigAmount;
+            xSIGToGet /= 1e18;
+        }
+
+        mint(xSIGToGet);
+
+        emit Stake(_amount, xSIGToGet);
+    }
 
     /**
         @notice Return xSIG for SIG which is compounded over time. It needs unlocking period.
         @param _amount The amount of xSIG to redeem
      */
-    function unstake(uint256 _amount) external {}
+    function unstake(uint256 _amount) external {
+        require(_amount > 0, "Redeem xSIG should be bigger than 0");
+        uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG;
+        uint256 xSIGAmount = totalSupply - pendingxSIG;
+
+        uint256 sigToReturn = (_amount * sigAmount * 1e18) / xSIGAmount;
+        uint256 endTime = block.timestamp + lockingPeriod;
+
+        withdrawInfoOf[msg.sender].push(
+            WithdrawInfo({
+                unlockTime: endTime,
+                xSIGAmount: _amount,
+                SIGAmount: sigToReturn / 1e18,
+                isWithdrawn: false
+            })
+        );
+
+        pendingSIG += sigToReturn;
+        pendingxSIG += _amount;
+
+        emit Unstake(_amount, sigToReturn);
+    }
 
     /**
         @notice Claim SIG which unlocking period has been ended. 
+        TODO: NEED TO DO GAS OPTIMIZATION
      */
-    function claimUnlockedSIG() external {}
+    function claimUnlockedSIG() external {
+        (
+            uint256 withdrawableSIG,
+            uint256 totalBurningxSIG
+        ) = _computeWithdrawableSIG(msg.sender);
+        require(withdrawableSIG > 0, "This address has no withdrawalbe SIG");
 
-    /* ========== Internal Function  ========== */
+        burn(totalBurningxSIG);
+        SIG.transferFrom(address(this), msg.sender, withdrawableSIG);
 
-    /**
-        @notice Mint xSIG
-        @param _receiver The address which you want to send tokens to
-        @param _amount The amount of tokens to be minted and sended to the receiver
-     */
-    function _mint(address _receiver, uint256 _amount) internal {}
+        emit ClaimUnlockedSIG(withdrawableSIG, totalBurningxSIG);
+    }
 
     /* ========== Restricted Function  ========== */
 
@@ -133,11 +198,60 @@ contract xSIG is IERC20, Ownable {
         lockingPeriod = _lockingPeriod;
     }
 
+    /* ========== Internal Function  ========== */
+    function _computeWithdrawableSIG(address _user)
+        internal
+        returns (uint256, uint256)
+    {
+        WithdrawInfo[] storage withdrawableInfos = withdrawInfoOf[_user];
+        uint256 withdrawableSIG = 0;
+        uint256 totalBurningxSIG = 0;
+
+        for (uint256 i = 0; i < withdrawableInfos.length; i++) {
+            WithdrawInfo storage withdrawInfo = withdrawableInfos[i];
+            if (!withdrawInfo.isWithdrawn) {
+                if (withdrawInfo.unlockTime < block.timestamp) {
+                    withdrawableSIG += withdrawInfo.SIGAmount;
+                    totalBurningxSIG += withdrawInfo.xSIGAmount;
+                    withdrawInfo.isWithdrawn = true;
+                }
+            }
+        }
+
+        if (withdrawableSIG != 0 && totalBurningxSIG != 0) {
+            pendingSIG -= withdrawableSIG;
+            pendingxSIG -= totalBurningxSIG;
+        }
+        return (withdrawableSIG, totalBurningxSIG);
+    }
+
     /* ========== View Function  ========== */
     /**
         @notice Compute Withdrawable SIG at given time.
      */
-    function computeWithdrawableSIG(address _user, uint256 _currentTime)
-        external
-    {}
+
+    function getRedeemableSIG() external view returns (uint256) {
+        WithdrawInfo[] memory withdrawableInfos = withdrawInfoOf[msg.sender];
+        uint256 withdrawableSIG;
+
+        for (uint256 i = 0; i < withdrawableInfos.length; i++) {
+            WithdrawInfo memory withdrawInfo = withdrawableInfos[i];
+            if (!withdrawInfo.isWithdrawn) {
+                if (withdrawInfo.unlockTime < block.timestamp) {
+                    withdrawableSIG += withdrawInfo.SIGAmount;
+                }
+            }
+        }
+        return withdrawableSIG;
+    }
+
+    /**
+        @notice You should devide return value by 10^7 to get a percentage.
+     */
+    function getxSIGExchangeRate() external view returns (uint256) {
+        uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG;
+        uint256 xSIGAmount = totalSupply - pendingxSIG;
+
+        return (sigAmount * 1e7) / xSIGAmount;
+    }
 }
