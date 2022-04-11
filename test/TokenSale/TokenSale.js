@@ -104,7 +104,7 @@ contract('TokenSale', function (accounts) {
                     SIGToken.address,
                     KUSDTToken.address,
                     receiver,
-                    { from: root } // This function always need to be called by the owner (root)
+                    { from: root }
                 ),
                 'Phase1 should start in the future.'
             );
@@ -117,7 +117,7 @@ contract('TokenSale', function (accounts) {
                     SIGToken.address,
                     KUSDTToken.address,
                     receiver,
-                    { from: root } // This function always need to be called by the owner (root)
+                    { from: root }
                 ),
                 'Phase2 should start after phase1'
             );
@@ -131,7 +131,7 @@ contract('TokenSale', function (accounts) {
                     SIGToken.address,
                     KUSDTToken.address,
                     receiver,
-                    { from: root } // This function always need to be called by the owner (root)
+                    { from: root }
                 ),
                 'phase2StartTs should smaller than phase2EndTs'
             );
@@ -146,7 +146,7 @@ contract('TokenSale', function (accounts) {
                     SIGToken.address,
                     KUSDTToken.address,
                     receiver,
-                    { from: root } // This function always need to be called by the owner (root)
+                    { from: root }
                 ),
                 'Phase2 should be longer than 1 hour.'
             );
@@ -159,7 +159,7 @@ contract('TokenSale', function (accounts) {
                     SIGToken.address,
                     KUSDTToken.address,
                     '0x0000000000000000000000000000000000000000',
-                    { from: root } // This function always need to be called by the owner (root)
+                    { from: root }
                 ),
                 'Invalid receiver address.'
             );

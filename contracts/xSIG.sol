@@ -19,11 +19,12 @@ contract xSIG is IERC20, Ownable {
         bool isWithdrawn;
     }
 
-    mapping(address => WithdrawInfo[]) withdrawInfoOf;
+    mapping(address => WithdrawInfo[]) public withdrawInfoOf;
 
-    event Unstake(uint256 RedeemedxSIG, uint256 sigQueued);
+    event Unstake(uint256 redeemedxSIG, uint256 sigQueued);
     event ClaimUnlockedSIG(uint256 withdrawnSIG, uint256 burnedSIG);
     event Stake(uint256 stakedSIG, uint256 mintedxSIG);
+    event FeesReceived(address indexed caller, uint256 amount);
 
     /* ========== Token Related ========== */
 
@@ -109,10 +110,10 @@ contract xSIG is IERC20, Ownable {
     }
 
     //TODO: external?
-    function burn(uint256 amount) internal {
-        balanceOf[msg.sender] -= amount;
+    function _burn(uint256 amount) internal {
+        balanceOf[address(this)] -= amount;
         totalSupply -= amount;
-        emit Transfer(msg.sender, address(0), amount);
+        emit Transfer(address(this), address(0), amount);
     }
 
     /* ========== External Function  ========== */
@@ -146,17 +147,25 @@ contract xSIG is IERC20, Ownable {
      */
     function unstake(uint256 _amount) external {
         require(_amount > 0, "Redeem xSIG should be bigger than 0");
+        require(
+            balanceOf[msg.sender] > _amount,
+            "Not enough xSIG amount to unstake."
+        );
+        IERC20(address(this)).transferFrom(msg.sender, address(this), _amount);
+
         uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG;
         uint256 xSIGAmount = totalSupply - pendingxSIG;
 
         uint256 sigToReturn = (_amount * sigAmount * 1e18) / xSIGAmount;
         uint256 endTime = block.timestamp + lockingPeriod;
 
+        sigToReturn /= 1e18;
+
         withdrawInfoOf[msg.sender].push(
             WithdrawInfo({
                 unlockTime: endTime,
                 xSIGAmount: _amount,
-                SIGAmount: sigToReturn / 1e18,
+                SIGAmount: sigToReturn,
                 isWithdrawn: false
             })
         );
@@ -178,10 +187,21 @@ contract xSIG is IERC20, Ownable {
         ) = _computeWithdrawableSIG(msg.sender);
         require(withdrawableSIG > 0, "This address has no withdrawalbe SIG");
 
-        burn(totalBurningxSIG);
+        _burn(totalBurningxSIG);
         SIG.transferFrom(address(this), msg.sender, withdrawableSIG);
 
         emit ClaimUnlockedSIG(withdrawableSIG, totalBurningxSIG);
+    }
+
+    /**
+        @notice Deposit protocol fees into the contract, to be distributed to stakers.
+        @dev Caller must have given approval for this contract to transfer SIG
+        @param _amount Amount of the token to deposit
+     */
+    function depositFee(uint256 _amount) external {
+        require(_amount > 0, "Deposit amount should be bigger than 0");
+        SIG.transferFrom(msg.sender, address(this), _amount);
+        emit FeesReceived(msg.sender, _amount);
     }
 
     /* ========== Restricted Function  ========== */
@@ -246,12 +266,15 @@ contract xSIG is IERC20, Ownable {
     }
 
     /**
-        @notice You should devide return value by 10^7 to get a percentage.
+        @notice You should devide return value by 10^7 to get a right number.
      */
     function getxSIGExchangeRate() external view returns (uint256) {
         uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG;
-        uint256 xSIGAmount = totalSupply - pendingxSIG;
-
-        return (sigAmount * 1e7) / xSIGAmount;
+        if (sigAmount == 0) {
+            return 1 * 1e7;
+        } else {
+            uint256 xSIGAmount = totalSupply - pendingxSIG;
+            return (sigAmount * 1e7) / xSIGAmount;
+        }
     }
 }
