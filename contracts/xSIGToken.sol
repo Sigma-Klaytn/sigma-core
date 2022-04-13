@@ -29,8 +29,6 @@ contract xSIGToken is IERC20, Ownable {
         for (uint256 i = 0; i < _minters.length; i++) {
             minters[_minters[i]] = true;
         }
-
-        renounceOwnership();
     }
 
     function approve(address _spender, uint256 _value)
