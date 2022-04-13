@@ -21,7 +21,7 @@ const KSPConverter = artifacts.require('KSPConverter');
 const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
 const TokenSale = artifacts.require('TokenSale');
-const xSIG = artifacts.require('xSIG');
+const SIGFarm = artifacts.require('SIGFarm');
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -62,8 +62,8 @@ async function makeTokenSale(opts = {}) {
     return await TokenSale.new();
 }
 
-async function makexSIG(opts = {}) {
-    return await xSIG.new();
+async function makeSIGFarm(opts = {}) {
+    return await SIGFarm.new();
 }
 
 module.exports = {
@@ -76,7 +76,7 @@ module.exports = {
     SigKSPStaking,
     SIGLocker,
     TokenSale,
-    xSIG,
+    SIGFarm,
 
     makeErc20Token,
     makeDepositingVault,
@@ -87,5 +87,5 @@ module.exports = {
     makeSigKSPStaking,
     makeSIGLocker,
     makeTokenSale,
-    makexSIG
+    makeSIGFarm,
 };

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-interface IVxERC20 {
+interface IvxERC20 {
     function totalSupply() external view returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);

@@ -5,13 +5,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/sigma/Whitelist.sol";
 import "./interfaces/sigma/IxSIGFarm.sol";
-import "./interfaces/sigma/IVxERC20.sol";
+import "./interfaces/sigma/IvxERC20.sol";
 
 contract xSIGFarm is Ownable, IxSIGFarm {
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public xSIG;
-    IVxERC20 public vxSIG;
+    IvxERC20 public vxSIG;
 
     /// @notice the rate of vxSIG generated per second
     uint256 public generationRate;
@@ -122,7 +122,7 @@ contract xSIGFarm is Ownable, IxSIGFarm {
         uint256 _maxVxSIGPerXSIG
     ) external onlyOwner {
         xSIG = IERC20(_SIG);
-        vxSIG = IVxERC20(_vxSIG);
+        vxSIG = IvxERC20(_vxSIG);
         generationRate = _generationRate;
         maxVxSIGPerXSIG = _maxVxSIGPerXSIG;
     }

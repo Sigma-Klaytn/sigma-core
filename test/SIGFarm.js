@@ -1,7 +1,7 @@
 const {
     makeErc20Token,
-    makexSIG,
-    xSIG,
+    makeSIGFarm,
+    SIGFarm,
     MockERC20
 } = require('./Utils/Sigma');
 

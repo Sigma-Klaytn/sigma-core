@@ -16,7 +16,7 @@ contract xSIGToken is IERC20, Ownable {
 
     mapping(address => uint256) public override balanceOf;
     mapping(address => mapping(address => uint256)) public override allowance;
-    mapping(address => bool) public minters;
+    mapping(address => bool) public operators;
 
     constructor() {}
 
@@ -25,10 +25,18 @@ contract xSIGToken is IERC20, Ownable {
         @dev In production the only minters should be `SIGFarm`
              Addresses are given via dynamic array to allow extra minters during testing
      */
-    function setMinters(address[] calldata _minters) external onlyOwner {
-        for (uint256 i = 0; i < _minters.length; i++) {
-            minters[_minters[i]] = true;
+    function setOperator(address[] calldata _operators) external onlyOwner {
+        for (uint256 i = 0; i < _operators.length; i++) {
+            operators[_operators[i]] = true;
         }
+    }
+
+    /**
+        @notice Revoke authority to mint and burn the given token.
+     */
+    function revokeOperator(address _operator) external onlyOwner {
+        require(operators[_operator], "This address is not an operator");
+        operators[_operator] = false;
     }
 
     function approve(address _spender, uint256 _value)
@@ -97,7 +105,7 @@ contract xSIGToken is IERC20, Ownable {
         @param _to receiver of the token
      */
     function mint(address _to, uint256 _value) external returns (bool) {
-        require(minters[msg.sender], "Not a minter");
+        require(operators[msg.sender], "Not a operators");
         balanceOf[_to] += _value;
         totalSupply += _value;
         emit Transfer(address(0), _to, _value);
@@ -109,6 +117,7 @@ contract xSIGToken is IERC20, Ownable {
         @param _value The amount of tokens to be burned
      */
     function burn(uint256 _value) external returns (bool) {
+        require(operators[msg.sender], "Not a operators");
         balanceOf[msg.sender] -= _value;
         totalSupply -= _value;
         emit Transfer(address(this), address(0), _value);
