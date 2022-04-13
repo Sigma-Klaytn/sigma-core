@@ -10,6 +10,7 @@ contract SIGFarm is Ownable {
 
     IERC20 public SIG;
     IxSIGToken public xSIG;
+    /// @notice unlocking period is needed to redeem xSIG for SIG.
     uint256 public lockingPeriod;
     uint256 public pendingxSIG;
     uint256 public pendingSIG;
@@ -24,7 +25,7 @@ contract SIGFarm is Ownable {
     mapping(address => WithdrawInfo[]) public withdrawInfoOf;
 
     event Unstake(uint256 redeemedxSIG, uint256 sigQueued);
-    event ClaimUnlockedSIG(uint256 withdrawnSIG, uint256 burnedSIG);
+    event ClaimUnlockedSIG(uint256 withdrawnSIG, uint256 burnedxSIG);
     event Stake(uint256 stakedSIG, uint256 mintedxSIG);
     event FeesReceived(address indexed caller, uint256 amount);
 
@@ -99,8 +100,8 @@ contract SIGFarm is Ownable {
         ) = _computeWithdrawableSIG(msg.sender);
         require(withdrawableSIG > 0, "This address has no withdrawalbe SIG");
 
-        xSIG.burn(totalBurningxSIG);
-        SIG.transferFrom(address(this), msg.sender, withdrawableSIG);
+        xSIG.burn(address(this), totalBurningxSIG);
+        SIG.transfer(msg.sender, withdrawableSIG);
 
         emit ClaimUnlockedSIG(withdrawableSIG, totalBurningxSIG);
     }
@@ -160,10 +161,10 @@ contract SIGFarm is Ownable {
     }
 
     /* ========== View Function  ========== */
+
     /**
         @notice Compute Withdrawable SIG at given time.
      */
-
     function getRedeemableSIG() external view returns (uint256) {
         WithdrawInfo[] memory withdrawableInfos = withdrawInfoOf[msg.sender];
         uint256 withdrawableSIG;

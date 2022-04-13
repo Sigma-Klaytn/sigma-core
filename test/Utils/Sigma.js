@@ -22,6 +22,7 @@ const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
 const TokenSale = artifacts.require('TokenSale');
 const SIGFarm = artifacts.require('SIGFarm');
+const xSIGToken = artifacts.require('xSIGToken');
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -66,6 +67,10 @@ async function makeSIGFarm(opts = {}) {
     return await SIGFarm.new();
 }
 
+async function makeXSIGToken(opts = {}) {
+    return await xSIGToken.new()
+}
+
 module.exports = {
     MockERC20,
     DepositingVault,
@@ -77,6 +82,7 @@ module.exports = {
     SIGLocker,
     TokenSale,
     SIGFarm,
+    xSIGToken,
 
     makeErc20Token,
     makeDepositingVault,
@@ -88,4 +94,5 @@ module.exports = {
     makeSIGLocker,
     makeTokenSale,
     makeSIGFarm,
+    makeXSIGToken,
 };

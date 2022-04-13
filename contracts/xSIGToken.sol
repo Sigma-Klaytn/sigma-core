@@ -3,12 +3,9 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/sigma/IxSIGToken.sol";
 
-contract xSIGToken is IERC20, Ownable {
-    /* ========== STATE VARIABLES ========== */
-
-    /* ========== Token Related ========== */
-
+contract xSIGToken is IxSIGToken, Ownable {
     string public constant name = "Sigma Compounding Token"; // Can be modified.
     string public constant symbol = "xSIG";
     uint8 public constant decimals = 18;
@@ -21,8 +18,8 @@ contract xSIGToken is IERC20, Ownable {
     constructor() {}
 
     /**
-        @notice Approve contracts to mint and renounce ownership
-        @dev In production the only minters should be `SIGFarm`
+     @notice Approve contracts to mint and renounce ownership
+    @dev In production the only minters should be `SIGFarm`
              Addresses are given via dynamic array to allow extra minters during testing
      */
     function setOperator(address[] calldata _operators) external onlyOwner {
@@ -32,7 +29,7 @@ contract xSIGToken is IERC20, Ownable {
     }
 
     /**
-        @notice Revoke authority to mint and burn the given token.
+     @notice Revoke authority to mint and burn the given token.
      */
     function revokeOperator(address _operator) external onlyOwner {
         require(operators[_operator], "This address is not an operator");
@@ -49,7 +46,6 @@ contract xSIGToken is IERC20, Ownable {
         return true;
     }
 
-    /** shared logic for transfer and transferFrom */
     function _transfer(
         address _from,
         address _to,
@@ -104,7 +100,11 @@ contract xSIGToken is IERC20, Ownable {
         @param _value The amount of tokens to be minted
         @param _to receiver of the token
      */
-    function mint(address _to, uint256 _value) external returns (bool) {
+    function mint(address _to, uint256 _value)
+        external
+        override
+        returns (bool)
+    {
         require(operators[msg.sender], "Not a operators");
         balanceOf[_to] += _value;
         totalSupply += _value;
@@ -116,11 +116,15 @@ contract xSIGToken is IERC20, Ownable {
         @notice Burn xSIG
         @param _value The amount of tokens to be burned
      */
-    function burn(uint256 _value) external returns (bool) {
+    function burn(address _from, uint256 _value)
+        external
+        override
+        returns (bool)
+    {
         require(operators[msg.sender], "Not a operators");
-        balanceOf[msg.sender] -= _value;
+        balanceOf[_from] -= _value;
         totalSupply -= _value;
-        emit Transfer(address(this), address(0), _value);
+        emit Transfer(address(_from), address(0), _value);
         return true;
     }
 }

@@ -10,5 +10,5 @@ interface IvxERC20 {
 
     function burn(address account, uint256 amount) external;
 
-    function approve(address spender, uint256 amount) external returns (bool);
+    // function approve(address spender, uint256 amount) external returns (bool);
 }

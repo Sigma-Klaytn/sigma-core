@@ -1,6 +1,8 @@
 const {
     makeErc20Token,
     makeSIGFarm,
+    makeXSIGToken,
+    xSIGToken,
     SIGFarm,
     MockERC20
 } = require('./Utils/Sigma');
@@ -32,7 +34,7 @@ const { MAX_INT256 } = require('@openzeppelin/test-helpers/src/constants');
 // [CAUTION]
 // --network :  You should run this code below in local environment since expectEvent doesn't work on Klaytn testnet for now.
 
-contract('xSIG', function (accounts) {
+contract('SIGFarm', function (accounts) {
     let root = accounts[0];
     let feeDistributor = accounts[1]; // Admin address who gets KUSDT at the end of phase2.
     let userA = accounts[2];
@@ -40,7 +42,9 @@ contract('xSIG', function (accounts) {
     let userC = accounts[4];
 
     let SIGToken;
-    let xSIG;
+    let xSIGToken;
+    let SIGFarm;
+
 
     const HOUR = 3600;
     const MINUTE = 60;
@@ -55,7 +59,11 @@ contract('xSIG', function (accounts) {
         before(async () => {
             //Deploy from the start.
             SIGToken = await makeErc20Token();
-            xSIG = await makexSIG();
+            xSIGToken = await makeXSIGToken();
+            SIGFarm = await makeSIGFarm();
+
+            //Set xSIGToken operator to SIGFarm.
+            await xSIGToken.setOperator([SIGFarm.address])
 
             //Fund KSUDT worth 10000$
             await SIGToken.mint(bnMantissa(10000), { from: feeDistributor });
@@ -66,82 +74,82 @@ contract('xSIG', function (accounts) {
 
         it('Test : 0.SetInitialInfo', async () => {
             //1. Check onlyOwner Function 
-            await expectRevert(xSIG.setInitialInfo(SIGToken.address, HOUR, { from: userA }), 'Ownable: caller is not the owner')
+            await expectRevert(SIGFarm.setInitialInfo(SIGToken.address, HOUR, xSIGToken.address, { from: userA }), 'Ownable: caller is not the owner')
 
             //2. Check if Initial Info has been set. 
-            await xSIG.setInitialInfo(SIGToken.address, HOUR)
-            expectEqual(await xSIG.lockingPeriod(), HOUR);
-            expectEqual(await xSIG.SIG(), SIGToken.address);
+            await SIGFarm.setInitialInfo(SIGToken.address, HOUR, xSIGToken.address,)
+            expectEqual(await SIGFarm.lockingPeriod(), HOUR);
+            expectEqual(await SIGFarm.SIG(), SIGToken.address);
         });
 
         it('Test : 1-1. Stake', async () => {
             //1. Check Reverts. 
             // 1-1. If the user hasn't approved yet.
-            await expectRevert.unspecified(xSIG.stake(bnMantissa(1), { from: userA }));
+            await expectRevert.unspecified(SIGFarm.stake(bnMantissa(1), { from: userA }));
             // 1-2.If the amount is 0
-            await expectRevert(xSIG.stake(0, { from: userA }), 'Stake SIG amount should be bigger than 0');
+            await expectRevert(SIGFarm.stake(0, { from: userA }), 'Stake SIG amount should be bigger than 0');
 
             //2. Stake 
             // 2-1. a,b,c stake 1:2:4 and now the xSIGExchangeRate should be 1
-            let exchangeRate = (await xSIG.getxSIGExchangeRate()).div(new BN(1e7))
+            let exchangeRate = (await SIGFarm.getxSIGExchangeRate()).div(new BN(1e7))
             expectEqual(exchangeRate, new BN(1)); // it's 1 since there is no SIG in the contract. 
-            await SIGToken.approve(xSIG.address, MAX_INT256, { from: userA });
-            await SIGToken.approve(xSIG.address, MAX_INT256, { from: userB });
-            await SIGToken.approve(xSIG.address, MAX_INT256, { from: userC });
+            await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: userA });
+            await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: userB });
+            await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: userC });
 
-            let receipt = await xSIG.stake(bnMantissa(10), { from: userA });
+            let receipt = await SIGFarm.stake(bnMantissa(10), { from: userA });
             expectEvent(receipt, 'Stake', {
                 stakedSIG: bnMantissa(10),
                 mintedxSIG: bnMantissa(10).div(exchangeRate)
             })
 
-            await xSIG.stake(bnMantissa(20), { from: userB });
-            await xSIG.stake(bnMantissa(40), { from: userC });
+            await SIGFarm.stake(bnMantissa(20), { from: userB });
+            await SIGFarm.stake(bnMantissa(40), { from: userC });
 
-            exchangeRate = (await xSIG.getxSIGExchangeRate()).div(new BN(1e7))
+            exchangeRate = (await SIGFarm.getxSIGExchangeRate()).div(new BN(1e7))
             expectEqual(exchangeRate, new BN(1)); // // it's still 1 since there is no fee in the contract.
 
             //3. Check all the variables of the contract. 
-            expectEqual(await xSIG.totalSupply(), bnMantissa(10 + 20 + 40))
-            expectEqual(await xSIG.balanceOf(userA), bnMantissa(10))
-            expectEqual(await xSIG.balanceOf(userB), bnMantissa(20))
-            expectEqual(await xSIG.balanceOf(userC), bnMantissa(40))
+            expectEqual(await xSIGToken.totalSupply(), bnMantissa(10 + 20 + 40))
+            expectEqual(await xSIGToken.balanceOf(userA), bnMantissa(10))
+            expectEqual(await xSIGToken.balanceOf(userB), bnMantissa(20))
+            expectEqual(await xSIGToken.balanceOf(userC), bnMantissa(40))
         });
 
         it('Test : 1-2. Fees are stacked.', async () => {
             //1. Fees are stacked from Fee distributor. 
-            await SIGToken.approve(xSIG.address, MAX_INT256, { from: feeDistributor })
-            let receipt = await xSIG.depositFee(bnMantissa(7), { from: feeDistributor })
+            await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: feeDistributor })
+            let receipt = await SIGFarm.depositFee(bnMantissa(7), { from: feeDistributor })
             expectEvent(receipt, 'FeesReceived', {
                 caller: feeDistributor,
                 amount: bnMantissa(7)
             })
 
             //2. Check the xSIGExchangeRate changed to 1.1 
-            let totalSIGAmount = await SIGToken.balanceOf(xSIG.address);
-            let totalxSIGSupply = await xSIG.totalSupply();
+            let totalSIGAmount = await SIGToken.balanceOf(SIGFarm.address);
+            let totalxSIGSupply = await xSIGToken.totalSupply();
             let estimatedxSIGExchangeRate = parseFloat(totalSIGAmount) / parseFloat(totalxSIGSupply);
             console.log('total SIG Amount : ', totalSIGAmount.toString(), '\ntotal xSIG Supply : ', totalxSIGSupply.toString(), '\nestimatedSIGExchangeRate : ', estimatedxSIGExchangeRate.toString())
-            expectEqual(parseFloat(await xSIG.getxSIGExchangeRate() / 1e7), estimatedxSIGExchangeRate);
+            expectEqual(parseFloat(await SIGFarm.getxSIGExchangeRate() / 1e7), estimatedxSIGExchangeRate);
 
             //3. Stake Again and check 
-            receipt = await xSIG.stake(bnMantissa(11), { from: userA });
+            receipt = await SIGFarm.stake(bnMantissa(11), { from: userA });
             expectEvent(receipt, 'Stake', {
                 stakedSIG: bnMantissa(11),
                 mintedxSIG: bnMantissa(10)
             })
 
             //4. Accumulate Fee again.
-            receipt = await xSIG.depositFee(bnMantissa(30), { from: feeDistributor })
-            totalSIGAmount = await SIGToken.balanceOf(xSIG.address);
-            totalxSIGSupply = await xSIG.totalSupply();
+            receipt = await SIGFarm.depositFee(bnMantissa(30), { from: feeDistributor })
+            totalSIGAmount = await SIGToken.balanceOf(SIGFarm.address);
+            totalxSIGSupply = await xSIGToken.totalSupply();
             estimatedxSIGExchangeRate = parseFloat(totalSIGAmount) / parseFloat(totalxSIGSupply);
             console.log('total SIG Amount : ', totalSIGAmount.toString(), '\ntotal xSIG Supply : ', totalxSIGSupply.toString(), '\nestimatedSIGExchangeRate : ', estimatedxSIGExchangeRate.toString())
-            expectEqual(parseFloat(await xSIG.getxSIGExchangeRate() / 1e7), estimatedxSIGExchangeRate);
+            expectEqual(parseFloat(await SIGFarm.getxSIGExchangeRate() / 1e7), estimatedxSIGExchangeRate);
 
 
             //5. Stake Again and check 
-            receipt = await xSIG.stake(bnMantissa(11), { from: userB });
+            receipt = await SIGFarm.stake(bnMantissa(11), { from: userB });
             console.log('minted xSIG : ', bnMantissa(11).mul(totalxSIGSupply).div(totalSIGAmount).toString())
 
             expectEvent(receipt, 'Stake', {
@@ -155,28 +163,31 @@ contract('xSIG', function (accounts) {
             before(async () => {
                 //Deploy from the start.
                 SIGToken = await makeErc20Token();
-                xSIG = await makexSIG();
+                xSIGToken = await makeXSIGToken();
+                SIGFarm = await makeSIGFarm();
 
-                await xSIG.setInitialInfo(SIGToken.address, HOUR)
+                await xSIGToken.setOperator([SIGFarm.address])
+
+                await SIGFarm.setInitialInfo(SIGToken.address, HOUR, xSIGToken.address)
 
                 await SIGToken.mint(bnMantissa(10000), { from: feeDistributor });
                 await SIGToken.mint(bnMantissa(10000), { from: userA });
                 await SIGToken.mint(bnMantissa(10000), { from: userB });
                 await SIGToken.mint(bnMantissa(10000), { from: userC });
 
-                await SIGToken.approve(xSIG.address, MAX_INT256, { from: userA });
-                await SIGToken.approve(xSIG.address, MAX_INT256, { from: userB });
-                await SIGToken.approve(xSIG.address, MAX_INT256, { from: userC });
+                await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: userA });
+                await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: userB });
+                await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: userC });
 
-                await xSIG.stake(bnMantissa(10), { from: userA });
-                await xSIG.stake(bnMantissa(20), { from: userB });
-                await xSIG.stake(bnMantissa(40), { from: userC });
+                await SIGFarm.stake(bnMantissa(10), { from: userA });
+                await SIGFarm.stake(bnMantissa(20), { from: userB });
+                await SIGFarm.stake(bnMantissa(40), { from: userC });
 
-                await SIGToken.approve(xSIG.address, MAX_INT256, { from: feeDistributor })
-                await xSIG.depositFee(bnMantissa(7), { from: feeDistributor })
+                await SIGToken.approve(SIGFarm.address, MAX_INT256, { from: feeDistributor })
+                await SIGFarm.depositFee(bnMantissa(7), { from: feeDistributor })
 
-                await xSIG.stake(bnMantissa(11), { from: userA });
-                await xSIG.stake(bnMantissa(22), { from: userB });
+                await SIGFarm.stake(bnMantissa(11), { from: userA });
+                await SIGFarm.stake(bnMantissa(22), { from: userB });
 
                 // [Situation]
                 // Total Staked SIG : 103
@@ -185,62 +196,118 @@ contract('xSIG', function (accounts) {
                 // TOTAL SIG : 110
                 // TOTAL xSIG Supply : 100
                 // xSIG Exchange Rate : 1.1 (TOTAL SIG / TOTAL xSIG Supply)
-                console.log('TOTAL SIG : ', (await SIGToken.balanceOf(xSIG.address)).toString());
-                console.log('TOTAL xSIG Supply : ', (await xSIG.totalSupply()).toString())
-                console.log('xSIG Exchange Rate : ', parseFloat(await xSIG.getxSIGExchangeRate()) / 1e7);
+                console.log('TOTAL SIG : ', (await SIGToken.balanceOf(SIGFarm.address)).toString());
+                console.log('TOTAL xSIG Supply : ', (await xSIGToken.totalSupply()).toString())
+                console.log('xSIG Exchange Rate : ', parseFloat(await SIGFarm.getxSIGExchangeRate()) / 1e7);
             });
             it('Test : 2. Unstake', async () => {
 
                 //1. Check reverts. 
                 //1-1. unstake amount should be bigger than 0.
-                await expectRevert(xSIG.unstake(0, { from: userA }), "Redeem xSIG should be bigger than 0");
+                await expectRevert(SIGFarm.unstake(0, { from: userA }), "Redeem xSIG should be bigger than 0");
 
                 //1-2. user have more xSIG than unstaking amount.
-                await expectRevert(xSIG.unstake(bnMantissa(1000000), { from: userA }), "Not enough xSIG amount to unstake.");
+                await expectRevert(SIGFarm.unstake(bnMantissa(1000000), { from: userA }), "Not enough xSIG amount to unstake.");
 
                 //1-3. try to unstake without approve xSIG
-                await expectRevert.unspecified(xSIG.unstake(bnMantissa(1), { from: userA }))
+                await expectRevert.unspecified(SIGFarm.unstake(bnMantissa(1), { from: userA }))
 
                 //3. Unstake
-                let userAxSIGAmount = await xSIG.balanceOf(userA);
+                let userAxSIGAmount = await xSIGToken.balanceOf(userA);
                 let userASIGAmount = await SIGToken.balanceOf(userA);
 
                 console.log(userAxSIGAmount.toString())
 
-                await xSIG.approve(xSIG.address, MAX_INT256, { from: userA });
-                console.log((await xSIG.allowance(userA, xSIG.address)).toString())
-                let receipt = await xSIG.unstake(bnMantissa(10), { from: userA });
-
+                await xSIGToken.approve(SIGFarm.address, MAX_INT256, { from: userA });
+                let unstakingAmount = bnMantissa(10)
+                let receipt = await SIGFarm.unstake(unstakingAmount, { from: userA });
+                let expectedSIGQueued = unstakingAmount.mul(new BN(11)).div(new BN(10))
 
                 expectEvent(receipt, 'Unstake', {
-                    redeemedxSIG: bnMantissa(10),
-                    sigQueued: bnMantissa(10).mul(new BN(11)).div(new BN(10))
+                    redeemedxSIG: unstakingAmount,
+                    sigQueued: expectedSIGQueued
                 })
 
-                //Change
-                console.log((await xSIG.withdrawInfoOf(userA, 0)).toString())
-                //User Withdraw Info 가져오고 확인
-                //Pending Amount 확인
+                let userAWithdrawInfo = await SIGFarm.withdrawInfoOf(userA, 0)
+                expectEqual(userAWithdrawInfo[1], unstakingAmount) //xSIGAmount
+                expectEqual(userAWithdrawInfo[2], expectedSIGQueued) //SIGAmount
+                expectEqual(userAWithdrawInfo[3], false) //isWithdrawn
 
-
+                //Pending amount of xSIG and SIG
+                expectEqual(await SIGFarm.pendingSIG(), expectedSIGQueued);
+                expectEqual(await SIGFarm.pendingxSIG(), unstakingAmount);
             });
 
             it('Test : 3. ClaimUnlockedSIG', async () => {
 
+                // 1. Check Reverts
+                //getRedeemableSIG from userA before unlockingPeriod ends
+                await expectRevert(SIGFarm.claimUnlockedSIG({ from: userA }), "This address has no withdrawalbe SIG");
+                expectEqual(await SIGFarm.getRedeemableSIG({ from: userA }), new BN(0))
+
+                // 1 hour later
+                await time.increase(time.duration.seconds(HOUR + 1));
+
+                let userSIGBalance = await SIGToken.balanceOf(userA)
+                let userxSIGBalance = await xSIGToken.balanceOf(userA)
+                let currentSIGFarmSIGBalance = await SIGToken.balanceOf(SIGFarm.address)
+                let currentSIGFarmXSIGBalance = await xSIGToken.balanceOf(SIGFarm.address)
+                let pendingSIG = await SIGFarm.pendingSIG();
+                let pendingxSIG = await SIGFarm.pendingxSIG();
+
+                console.log('userSIGBalance : ', userSIGBalance.toString())
+                console.log('userxSIGBalance : ', userxSIGBalance.toString())
+                console.log('currentSIGFarmSIGBalance : ', currentSIGFarmSIGBalance.toString())
+                console.log('currentSIGFarmXSIGBalance : ', currentSIGFarmXSIGBalance.toString())
+                console.log('pendingSIG : ', pendingSIG.toString())
+                console.log('pendingxSIG : ', pendingxSIG.toString())
+
+                // 11 SIG is unlocked and able to be claimed
+                let userAWithdrawInfo = await SIGFarm.withdrawInfoOf(userA, 0)
+                let userAReedeamableExpect = await SIGFarm.getRedeemableSIG({ from: userA })
+                expectEqual(userAReedeamableExpect, userAWithdrawInfo[2])
+                let receipt = await SIGFarm.claimUnlockedSIG({ from: userA })
+
+                expectEvent(receipt, "ClaimUnlockedSIG", {
+                    withdrawnSIG: userAReedeamableExpect,
+                    burnedxSIG: userAWithdrawInfo[1]
+                })
+
+                let after_userSIGBalance = await SIGToken.balanceOf(userA)
+                let after_userxSIGBalance = await xSIGToken.balanceOf(userA)
+                let after_currentSIGFarmSIGBalance = await SIGToken.balanceOf(SIGFarm.address)
+                let after_currentSIGFarmXSIGBalance = await xSIGToken.balanceOf(SIGFarm.address)
+                let after_pendingSIG = await SIGFarm.pendingSIG();
+                let after_pendingxSIG = await SIGFarm.pendingxSIG();
+
+                console.log('after userSIGBalance : ', after_userSIGBalance.toString())
+                console.log('after userxSIGBalance : ', after_userxSIGBalance.toString())
+                console.log('after currentSIGFarmSIGBalance : ', after_currentSIGFarmSIGBalance.toString())
+                console.log('after currentSIGFarmXSIGBalance : ', after_currentSIGFarmXSIGBalance.toString())
+                console.log('after pendingSIG : ', after_pendingSIG.toString())
+                console.log('after pendingxSIG : ', after_pendingxSIG.toString())
+
+                expectEqual(after_pendingSIG, pendingSIG - userAReedeamableExpect)
+                expectEqual(after_pendingxSIG, pendingxSIG - userAWithdrawInfo[1]) //xSIGAmount
+
+                userAWithdrawInfo = await SIGFarm.withdrawInfoOf(userA, 0)
+
+                expect(userAWithdrawInfo[3]).to.be.ok; // isWithdrawn == true
+                expectEqual(await SIGFarm.getRedeemableSIG({ from: userA }), new BN(0))
+
+                // TODO: TEST WITH MULTIPLE PEOPLE
             });
 
-        })
-
-        describe('Test : 0.SetInitialInfo', () => {
 
             it('Test : 4. SetLockingPeriod', async () => {
+                // 1. Check reverts.
+                await expectRevert(SIGFarm.setLockingPeriod(HOUR * 2, { from: userA }), "Ownable: caller is not the owner")
 
-            });
-
-            it('Test : 5. View Functions', async () => {
-
-            });
-
+                // 2. Change Locking Period : 1hour -> 30 days
+                const thirtyDays = HOUR * 24 * 30
+                let receipt = await SIGFarm.setLockingPeriod(thirtyDays, { from: root })
+                expectEqual(await SIGFarm.lockingPeriod(), new BN(HOUR * 24 * 30))
+            })
         })
     });
 });

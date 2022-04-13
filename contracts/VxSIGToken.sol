@@ -28,7 +28,7 @@ contract vxSIGToken is IvxERC20, Ownable {
     );
 
     /**
-        @notice Approve contracts to mint and renounce ownership
+        @notice Approve contracts to mint and burn the given token.
         @dev In production the only minters should be `xSIGFarm`
              Addresses are given via dynamic array to allow extra minters during testing
      */
@@ -39,9 +39,7 @@ contract vxSIGToken is IvxERC20, Ownable {
     }
 
     /**
-        @notice Approve contracts to mint and renounce ownership
-        @dev In production the only minters should be `xSIGFarm`
-             Addresses are given via dynamic array to allow extra minters during testing
+        @notice Revoke authority to mint and burn the given token.
      */
     function revokeOperator(address _operator) external onlyOwner {
         require(operators[_operator], "This address is not an operator");
@@ -90,13 +88,13 @@ contract vxSIGToken is IvxERC20, Ownable {
     }
 
     //TODO: approve 관련해서 어떻게 할 건지, delegate to EOA & CA 관련
-    function approve(address _spender, uint256 _value)
-        external
-        override
-        returns (bool)
-    {
-        allowances[msg.sender][_spender] = _value;
-        emit Approval(msg.sender, _spender, _value);
-        return true;
-    }
+    // function approve(address _spender, uint256 _value)
+    //     external
+    //     override
+    //     returns (bool)
+    // {
+    //     allowances[msg.sender][_spender] = _value;
+    //     emit Approval(msg.sender, _spender, _value);
+    //     return true;
+    // }
 }
