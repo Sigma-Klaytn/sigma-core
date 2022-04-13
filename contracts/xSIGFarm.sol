@@ -3,158 +3,251 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/sigma/Whitelist.sol";
+import "./interfaces/sigma/IxSIGFarm.sol";
+import "./interfaces/sigma/IVxERC20.sol";
 
-contract xSIGFarm is Ownable {
+contract xSIGFarm is Ownable, IxSIGFarm {
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public xSIG;
-    uint256 public boostPerHour;
-    uint256 public maxBoostPerSIG;
+    IVxERC20 public vxSIG;
 
-    uint256 constant HOUR = 3600;
+    /// @notice the rate of vxSIG generated per second
+    uint256 public generationRate;
+
+    /// @notice max vxSIG per SIG
+    uint256 public maxVxSIGPerXSIG;
+
+    /// @notice whitelist wallet checker
+    /// @dev contract addresses are by default unable to stake xSIG, they must be previously whitelisted to stake xSIG
+    Whitelist public whitelist;
 
     struct UserInfo {
-        uint256 bondedXSIG; // bond 한 xSIG amount
-        uint256 receivedVxSIG; // 현재 축적된 vxSIG
-        uint256 lastUpdated; // last update
-        uint256 startTime; // vxSIG를 축적하기 시작한 시간
+        uint256 stakedXSIG; // staked xSIG of the user
+        uint256 lastRelease; // last release timestamp for checking pending vxSIG. last vxSIG claim time or first deposit time.
+        uint256 startTime; // initial xSIG stake timestamp.
     }
 
+    /// @notice UserInfo mapping
     mapping(address => UserInfo) public userInfoOf;
 
-    event Bond(
-        uint256 bondAmount,
-        uint256 totalBondAmount,
-        uint256 totalReceivedVxSIG
+    /// @notice events describing staking, unstaking and claiming
+    event Staked(
+        address indexed user,
+        uint256 indexed amount,
+        uint256 indexed totalBondedAmount
     );
-
-    event Unbond(uint256 unbondAmount, uint256 totalBondAmount);
+    event Unstaked(
+        address indexed user,
+        uint256 indexed amount,
+        uint256 indexed totalBondedAmount
+    );
+    event Claimed(address indexed user, uint256 indexed amount);
 
     /* ========== External Function  ========== */
-    function bond(uint256 _amount) external {
-        require(_amount > 0, "Bond amount should be bigger than 0");
-        xSIG.transferFrom(msg.sender, address(this), _amount);
 
+    /**
+     @notice stake xSIG
+     @notice if user already staked xSIG, claim vxSIG first and then stake.
+     @param _amount the amount of xSIG to stake
+     */
+    function stake(uint256 _amount) external override {
+        require(_amount > 0, "stake xSIG amount should be bigger than 0");
+
+        _assertNotContract(msg.sender);
         UserInfo storage userInfo = userInfoOf[msg.sender];
-        if (userInfo.bondedXSIG == 0) {
-            userInfo.bondedXSIG = _amount;
-            userInfo.receivedVxSIG = 0;
-            userInfo.startTime = block.timestamp;
-            userInfo.lastUpdated = block.timestamp;
+        if (userInfo.stakedXSIG > 0) {
+            _claim(msg.sender);
         } else {
-            _accumulateBoost(userInfo);
-            userInfo.bondedXSIG += _amount;
+            // Add user and set initial info
+            userInfo.startTime = block.timestamp;
+            userInfo.lastRelease = block.timestamp;
         }
 
-        emit Bond(_amount, userInfo.bondedXSIG, userInfo.receivedVxSIG);
+        xSIG.transferFrom(msg.sender, address(this), _amount);
+        userInfo.stakedXSIG += _amount;
+
+        emit Staked(msg.sender, _amount, userInfo.stakedXSIG);
     }
 
-    function unbond(uint256 _amount) external {
-        require(_amount > 0, "Unbond amount should be bigger than 0");
+    /**
+     @notice withdraws staked xSIG
+     @notice You should be aware that you are going to lose all of your vxSIG if you unstake any amount of xSIG.
+     @param _amount the amount of xSIG to unstake
+     */
+    function unstake(uint256 _amount) external override {
+        require(_amount > 0, "Unstake amount should be bigger than 0");
         UserInfo storage userInfo = userInfoOf[msg.sender];
-        require(userInfo.bondedXSIG > 0, "There is no xSIG to unbond.");
-        require(userInfo.bondedXSIG > _amount, "Insuffcient xSIG to unbond");
+        require(userInfo.stakedXSIG > 0, "There is no xSIG to unbond.");
+        require(userInfo.stakedXSIG > _amount, "Insuffcient xSIG to unbond");
 
-        //UserInfo set again.
-        userInfo.bondedXSIG -= _amount;
-        userInfo.receivedVxSIG = 0; //vxSIG resetted if any unbond happens;
+        userInfo.stakedXSIG -= _amount;
 
-        if (userInfo.bondedXSIG == 0) {
-            //reset userInfo
+        if (userInfo.stakedXSIG == 0) {
             userInfo.startTime = 0;
-            userInfo.lastUpdated = 0;
+            userInfo.lastRelease = 0;
         } else {
             userInfo.startTime = block.timestamp;
-            userInfo.lastUpdated = block.timestamp;
+            userInfo.lastRelease = block.timestamp;
         }
 
-        //TODO: If there has been a vote on SigmaVoter, it should be resetted.
+        //burn vxSIG of user. balance goes to 0
+        uint256 uservxSIGBalance = vxSIG.balanceOf(msg.sender);
+        vxSIG.burn(msg.sender, uservxSIGBalance);
 
+        //TODO: If there has been a vote on SigmaVoter, it should be resetted.
         xSIG.transfer(msg.sender, _amount);
 
-        emit Unbond(_amount, userInfo.bondedXSIG);
+        emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
+    }
+
+    /**
+     @notice claims accumulated vxSIG
+     */
+    function claim() external override {
+        require(isUser(msg.sender), "User didn't stake any xSIG.");
+        _claim(msg.sender);
     }
 
     /* ========== Restricted Function  ========== */
 
+    /**
+     @notice sets initialInfo of the contract.
+     */
     function setInitialInfo(
         address _SIG,
-        uint256 _boostPerHour,
-        uint256 _maxBoostPerSIG
+        address _vxSIG,
+        uint256 _generationRate,
+        uint256 _maxVxSIGPerXSIG
     ) external onlyOwner {
         xSIG = IERC20(_SIG);
-        boostPerHour = _boostPerHour;
-        maxBoostPerSIG = _maxBoostPerSIG;
+        vxSIG = IVxERC20(_vxSIG);
+        generationRate = _generationRate;
+        maxVxSIGPerXSIG = _maxVxSIGPerXSIG;
     }
-
-    function setBoostPerHour(uint256 _boostPerHour) external onlyOwner {
-        boostPerHour = _boostPerHour;
-    }
-
-    function setMaxBoosterPerSIG(uint256 _maxBoostPerSIG) external onlyOwner {
-        maxBoostPerSIG = _maxBoostPerSIG;
-    }
-
-    /* ========== Internal Function  ========== */
 
     /**
-        @notice Lazy update user info storage. It is called when user 'bond'
-        @param userInfo userInfo
+     @notice sets generation rate
+     @param _generationRate the new generation rate. how much vxSIG going to be added per second.
      */
-    function _accumulateBoost(UserInfo storage userInfo) internal {
-        if (userInfo.bondedXSIG > 0 && block.timestamp > userInfo.lastUpdated) {
-            uint256 newBoost = userInfo.bondedXSIG *
-                boostPerHour *
-                (((block.timestamp - userInfo.lastUpdated) * 1e18) / HOUR);
-            newBoost /= 1e18;
-            uint256 maxBoost = userInfo.bondedXSIG * maxBoostPerSIG;
+    function setGenerationRate(uint256 _generationRate) external onlyOwner {
+        require(_generationRate != 0, "generation rate cannot be zero");
+        generationRate = _generationRate;
+    }
 
-            if (newBoost + userInfo.receivedVxSIG > maxBoost) {
-                userInfo.receivedVxSIG = maxBoost;
-            } else {
-                userInfo.receivedVxSIG = userInfo.receivedVxSIG + newBoost;
-            }
-            userInfo.lastUpdated = block.timestamp;
+    /**
+     @notice sets maxBoosterPerSIG
+     @param _maxVxSIGPerXSIG the new max vxSIG per 1 xSIG
+     */
+    function setMaxBoosterPerSIG(uint256 _maxVxSIGPerXSIG) external onlyOwner {
+        require(_maxVxSIGPerXSIG != 0, "_maxVxSIGPerXSIG cannot be zero");
+        maxVxSIGPerXSIG = _maxVxSIGPerXSIG;
+    }
+
+    /**
+     @notice sets whitelist address
+     @param _whitelist the new whitelist address
+     */
+    function setWhitelist(Whitelist _whitelist) external onlyOwner {
+        require(address(_whitelist) != address(0), "zero address");
+        whitelist = _whitelist;
+    }
+
+    /* ========== Internal & Private Function  ========== */
+
+    /**
+     @notice asserts address in param is not a smart contract. if it is a smart contract, check that it is whitelisted
+     @param _address the address to check 
+     */
+    function _assertNotContract(address _address) private view {
+        if (_address != tx.origin) {
+            require(
+                address(whitelist) != address(0) && whitelist.check(_address),
+                "Smart contract depositors not allowed, ask for whitelisting if you are smart contract."
+            );
         }
+    }
+
+    /**
+        @notice private claim vxSIG function
+        @param _address the address of the user to claim from
+     */
+    function _claim(address _address) private {
+        uint256 amount = _claimable(_address);
+
+        // update last release time
+        userInfoOf[_address].lastRelease = block.timestamp;
+
+        if (amount > 0) {
+            emit Claimed(_address, amount);
+            vxSIG.mint(_address, amount);
+        }
+    }
+
+    /**
+     @notice private claim function
+     @param _address the address of the user to claim from
+     */
+    function _claimable(address _address) private view returns (uint256) {
+        UserInfo memory user = userInfoOf[_address];
+
+        // get seconds elapsed since last claim
+        uint256 secondsElapsed = block.timestamp - user.lastRelease;
+
+        uint256 pending = user.stakedXSIG * secondsElapsed * generationRate;
+
+        // get user's vxSIG balance
+        uint256 userVxSIGBalance = vxSIG.balanceOf(_address);
+
+        // user vxSIG balance cannot go above user.amount * maxCap
+        uint256 maxVxSIGCap = user.stakedXSIG * maxVxSIGPerXSIG;
+
+        // first, check that user hasn't reached the max limit yet
+        if (userVxSIGBalance < maxVxSIGCap) {
+            // then, check if pending amount will make user balance overpass maximum amount
+            if ((userVxSIGBalance + pending) > maxVxSIGCap) {
+                return maxVxSIGCap - userVxSIGBalance;
+            } else {
+                return pending;
+            }
+        }
+        return 0;
     }
 
     /* ========== View Function  ========== */
 
     /**
-        @notice Calculate user's current boost. This is not the same value with current storage 
-        @param _user address of the user
-        @return currentReceivableVxSIG current boost amount of the user
-        @return bondedXSIG total bonded xSIG of the user
-        @return startTime start time of the vxSIG farming.
+     @notice checks wether user _address has xSIG staked
+     @param _address the user address to check
+     @return true if the user has xSIG in stake, false otherwise
+    */
+    function isUser(address _address) public view override returns (bool) {
+        return userInfoOf[_address].stakedXSIG > 0;
+    }
+
+    /**
+     @notice Calculate the amount of vxSIG that can be claimed by user
+     @param _address the address to check
+     @return amount of vxSIG that can be claimed by user
      */
-    function getUserCurrentInfo(address _user)
+
+    function claimable(address _address) external view returns (uint256) {
+        require(_address != address(0), "zero address");
+        return _claimable(_address);
+    }
+
+    /**
+     @notice Check Staked xSIG of the user
+     @param _address the user address to check
+     */
+    function getStakedXSIG(address _address)
         external
         view
-        returns (
-            uint256 currentReceivableVxSIG,
-            uint256 bondedXSIG,
-            uint256 startTime
-        )
+        override
+        returns (uint256)
     {
-        UserInfo memory userInfo = userInfoOf[_user];
-        if (userInfo.bondedXSIG > 0 && block.timestamp > userInfo.lastUpdated) {
-            uint256 newBoost = userInfo.bondedXSIG *
-                boostPerHour *
-                (((block.timestamp - userInfo.lastUpdated) * 1e18) / HOUR);
-            newBoost /= 1e18;
-            uint256 maxBoost = userInfo.bondedXSIG * maxBoostPerSIG;
-
-            if (newBoost + userInfo.receivedVxSIG > maxBoost) {
-                return (maxBoost, userInfo.bondedXSIG, userInfo.startTime);
-            } else {
-                return (
-                    userInfo.receivedVxSIG + newBoost,
-                    userInfo.bondedXSIG,
-                    userInfo.startTime
-                );
-            }
-        } else {
-            return (0, 0, 0);
-        }
+        require(_address != address(0), "zero address");
+        return userInfoOf[_address].stakedXSIG;
     }
 }
