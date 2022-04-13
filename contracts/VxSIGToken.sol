@@ -2,12 +2,12 @@
 
 pragma solidity ^0.8.9;
 
-import "./interfaces/sigma/IVxERC20.sol";
+import "./interfaces/sigma/IVxSIG.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title VxSIG
 /// @notice Modified version of ERC20 where transfers and allowances are disabled.
-contract VxSIG is IVxERC20, Ownable {
+contract VxSIToken is IVxSIG, Ownable {
     string public constant name = "Sigma Voting Power Token"; // Can be modified.
     string public constant symbol = "vxSIG";
     uint8 public constant decimals = 18;
