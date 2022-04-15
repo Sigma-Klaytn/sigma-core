@@ -17,12 +17,15 @@ const DepositingVault = artifacts.require('DepositingVault');
 const Vault = artifacts.require('Vault');
 const KSPVault = artifacts.require('KSPVault');
 const MockVotingKSP = artifacts.require('MockVotingKSP');
+const IPoolVoting = artifacts.require('IPoolVoting');
 const KSPConverter = artifacts.require('KSPConverter');
 const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
 const TokenSale = artifacts.require('TokenSale');
 const SIGFarm = artifacts.require('SIGFarm');
 const xSIGToken = artifacts.require('xSIGToken');
+const vxSIGToken = artifacts.require('vxSIGToken');
+const xSIGFarm = artifacts.require('xSIGFarm');
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -30,6 +33,10 @@ async function makeErc20Token(opts = {}) {
     const symbol = opts.symbol || 'DAI';
     const name = opts.name || `Erc20 ${symbol}`;
     return await MockERC20.new();
+}
+
+async function makeIPoolVoting(opts = {}) {
+    return await IPoolVoting.new();
 }
 
 async function makeDepositingVault(opts = {}) {
@@ -71,6 +78,14 @@ async function makeXSIGToken(opts = {}) {
     return await xSIGToken.new()
 }
 
+async function makeVxSIGToken(opts = {}) {
+    return await vxSIGToken.new();
+}
+async function makeXSIGFarm(opts = {}) {
+    return await xSIGFarm.new();
+}
+
+
 module.exports = {
     MockERC20,
     DepositingVault,
@@ -83,6 +98,10 @@ module.exports = {
     TokenSale,
     SIGFarm,
     xSIGToken,
+    xSIGFarm,
+    vxSIGToken,
+    IPoolVoting,
+
 
     makeErc20Token,
     makeDepositingVault,
@@ -95,4 +114,7 @@ module.exports = {
     makeTokenSale,
     makeSIGFarm,
     makeXSIGToken,
+    makeXSIGFarm,
+    makeVxSIGToken,
+    makeIPoolVoting
 };

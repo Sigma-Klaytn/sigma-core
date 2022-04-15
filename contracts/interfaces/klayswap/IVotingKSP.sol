@@ -8,7 +8,12 @@ interface IVotingKSP {
 
     //TODO: 아래는 ABI 받고 주석 풀면됨.
     // function unlockKSP() external;
-    // function refixBoosting(uint lockPeriodRequested) external;
+
+    // function refixBoosting(uint256 lockPeriodRequested) external;
+
     // function claimReward() external;
+
     // function compoundReward() external;
+
+    function balanceOf(address account) external view returns (uint256);
 }

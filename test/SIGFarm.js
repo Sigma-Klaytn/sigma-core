@@ -65,7 +65,7 @@ contract('SIGFarm', function (accounts) {
             //Set xSIGToken operator to SIGFarm.
             await xSIGToken.setOperator([SIGFarm.address])
 
-            //Fund KSUDT worth 10000$
+            //Fund SIGToken
             await SIGToken.mint(bnMantissa(10000), { from: feeDistributor });
             await SIGToken.mint(bnMantissa(10000), { from: userA });
             await SIGToken.mint(bnMantissa(10000), { from: userB });

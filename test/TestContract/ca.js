@@ -3,10 +3,13 @@ const {
     makeDepositingVault,
     makeVault,
     makeKSPVault,
+    makeIPoolVoting,
+    poolVoting,
     MockERC20,
     DepositingVault,
     Vault,
-    KSPVault
+    KSPVault,
+    IPoolVoting
 } = require('../Utils/Sigma');
 
 const {
@@ -16,10 +19,8 @@ const {
     bnMantissa,
     BN
 } = require('../Utils/JS');
-ㅇ;
 const IVotingKSP = artifacts.require('IVotingKSP');
 const MAX_UINT_256 = new BN(2).pow(new BN(256)).sub(new BN(1));
-
 const oneMantissa = new BN(10).pow(new BN(18));
 
 contract('KSPVault', function (accounts) {
@@ -30,13 +31,15 @@ contract('KSPVault', function (accounts) {
         let kspVault;
         let votingKSP;
         let erc20Token;
+        let poolVoting;
 
         let KSP;
         let vKSP;
 
         const vKSPAddress = '0x2f3713f388bc4b8b364a7a2d8d57c5ff4e054830';
         const KSPAddress = '0xc6a2ad8cc6e4a7e08fc37cc5954be07d499e7654';
-
+        const poolVotingAddress = '0x71b59e4bc2995b57aa03437ed645ada7dd5b1890'
+        const KlayKSPLpAddress = '0x34cf46c21539e03deb26e4fa406618650766f3b9'
         before(async () => {
             console.log(accounts.length);
 
@@ -45,6 +48,8 @@ contract('KSPVault', function (accounts) {
             //     '0x2F3713F388BC4b8b364a7A2d8D57c5Ff4E054830',
             //     '0xc6a2ad8cc6e4a7e08fc37cc5954be07d499e7654'
             // );
+
+            poolVoting = await IPoolVoting.at(poolVotingAddress);
             kspVault = await KSPVault.at(
                 '0x90f14218Da7aB6896CBBf691eb1Cb2E8B6BDB7A4'
             );
@@ -151,10 +156,17 @@ contract('KSPVault', function (accounts) {
             // [case 2] CA
             // let receipt = await kspVault.lockKSP(1, 1555200000);
 
-            console.log(
-                'locked user lockckjlafsdjls;fj;laskdf',
-                (await kspVault.lockedKSP(user)).toString()
-            );
+            let valutVKSP = await votingKSP.balanceOf(kspVault.address);
+            console.log(valutVKSP.toString())
+
+            let receipt = await poolVoting.addVoting(KlayKSPLpAddress, 1, { from: })
+
+            valutVKSP = await votingKSP.balanceOf(kspVault.address);
+            console.log(valutVKSP.toString())
+            // console.log(
+            //     'locked user lockckjlafsdjls;fj;laskdf',
+            //     (await kspVault.lockedKSP(user)).toString()
+            // );
 
             // console.log('11111', receipt);
         });

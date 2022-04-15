@@ -17,7 +17,7 @@ contract MockVotingKSP is IERC20, IVotingKSP {
     uint8 public constant decimals = 18;
     uint256 public override totalSupply;
 
-    mapping(address => uint256) public override balanceOf;
+    mapping(address => uint256) public override(IVotingKSP, IERC20) balanceOf;
     mapping(address => mapping(address => uint256)) public override allowance;
 
     //ksp

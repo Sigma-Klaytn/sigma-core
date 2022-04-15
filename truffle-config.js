@@ -55,7 +55,7 @@ module.exports = {
             },
             network_id: '1001', //Klaytn baobab testnet's network id
             gas: '8500000',
-            gasPrice: null
+            gasPrice: '750000000000'
         },
         kasCypress: {
             provider: () => {
@@ -85,7 +85,7 @@ module.exports = {
             },
             network_id: '8217', //Klaytn baobab testnet's network id
             gas: '8500000',
-            gasPrice: '25000000000'
+            gasPrice: null
         },
         baobab: {
             provider: () => {
@@ -102,18 +102,15 @@ module.exports = {
             network_id: '1001', //Klaytn baobab testnet's network id
             gas: '8500000',
             gasPrice: null
-        }
-        // cypress: {
-        //     provider: () => {
-        //         return new HDWalletProvider(
-        //             process.env.PRIVATE_KEY,
-        //             'NO CUSTOM EN'
-        //         );
-        //     },
-        //     network_id: '8217', //Klaytn mainnet's network id
-        //     gas: '8500000',
-        //     gasPrice: null
-        // }
+        },
+
+        cypress: {
+            provider: () => {
+                return new HDWalletProvider(process.env.PRIVATE_KEY, 'https://public-node-api.klaytnapi.com/v1/cypress');
+            },
+            network_id: '8217', //Klaytn mainnet’s network id
+            gas: '8500000',
+        },
     },
 
     compilers: {

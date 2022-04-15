@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/sigma/Whitelist.sol";
 import "./interfaces/sigma/IxSIGFarm.sol";
 import "./interfaces/sigma/IvxERC20.sol";
+import "./libraries/DSMath.sol";
 
 contract xSIGFarm is Ownable, IxSIGFarm {
     /* ========== STATE VARIABLES ========== */
@@ -36,12 +37,12 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     event Staked(
         address indexed user,
         uint256 indexed amount,
-        uint256 indexed totalBondedAmount
+        uint256 indexed totalStakedAmount
     );
     event Unstaked(
         address indexed user,
         uint256 indexed amount,
-        uint256 indexed totalBondedAmount
+        uint256 indexed totalStakedAmount
     );
     event Claimed(address indexed user, uint256 indexed amount);
 
@@ -79,8 +80,7 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     function unstake(uint256 _amount) external override {
         require(_amount > 0, "Unstake amount should be bigger than 0");
         UserInfo storage userInfo = userInfoOf[msg.sender];
-        require(userInfo.stakedXSIG > 0, "There is no xSIG to unbond.");
-        require(userInfo.stakedXSIG > _amount, "Insuffcient xSIG to unbond");
+        require(userInfo.stakedXSIG >= _amount, "Insuffcient xSIG to unstake");
 
         userInfo.stakedXSIG -= _amount;
 
@@ -115,16 +115,15 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     /**
      @notice sets initialInfo of the contract.
      */
-    function setInitialInfo(
-        address _SIG,
-        address _vxSIG,
-        uint256 _generationRate,
-        uint256 _maxVxSIGPerXSIG
-    ) external onlyOwner {
-        xSIG = IERC20(_SIG);
+    function setInitialInfo(address _xSIG, address _vxSIG) external onlyOwner {
+        xSIG = IERC20(_xSIG);
         vxSIG = IvxERC20(_vxSIG);
-        generationRate = _generationRate;
-        maxVxSIGPerXSIG = _maxVxSIGPerXSIG;
+
+        //Initial generation rate. 0.014 vxSIG per hour
+        generationRate = 3888888888888;
+
+        //Initial vxSIG per xSIG is 100
+        maxVxSIGPerXSIG = 100000000000000000000;
     }
 
     /**
@@ -133,6 +132,11 @@ contract xSIGFarm is Ownable, IxSIGFarm {
      */
     function setGenerationRate(uint256 _generationRate) external onlyOwner {
         require(_generationRate != 0, "generation rate cannot be zero");
+        require(
+            _generationRate != generationRate,
+            "new generation is same with old one"
+        );
+
         generationRate = _generationRate;
     }
 
@@ -140,8 +144,12 @@ contract xSIGFarm is Ownable, IxSIGFarm {
      @notice sets maxBoosterPerSIG
      @param _maxVxSIGPerXSIG the new max vxSIG per 1 xSIG
      */
-    function setMaxBoosterPerSIG(uint256 _maxVxSIGPerXSIG) external onlyOwner {
+    function setMaxVxSIGPerXSIG(uint256 _maxVxSIGPerXSIG) external onlyOwner {
         require(_maxVxSIGPerXSIG != 0, "_maxVxSIGPerXSIG cannot be zero");
+        require(
+            _maxVxSIGPerXSIG != maxVxSIGPerXSIG,
+            "new maxVxSIGPerXSIG is same with old one"
+        );
         maxVxSIGPerXSIG = _maxVxSIGPerXSIG;
     }
 
@@ -195,13 +203,16 @@ contract xSIGFarm is Ownable, IxSIGFarm {
         // get seconds elapsed since last claim
         uint256 secondsElapsed = block.timestamp - user.lastRelease;
 
-        uint256 pending = user.stakedXSIG * secondsElapsed * generationRate;
-
+        // DSMath.wmul used to multiply wad numbers
+        uint256 pending = DSMath.wmul(
+            user.stakedXSIG,
+            secondsElapsed * generationRate
+        );
         // get user's vxSIG balance
         uint256 userVxSIGBalance = vxSIG.balanceOf(_address);
 
         // user vxSIG balance cannot go above user.amount * maxCap
-        uint256 maxVxSIGCap = user.stakedXSIG * maxVxSIGPerXSIG;
+        uint256 maxVxSIGCap = DSMath.wmul(user.stakedXSIG, maxVxSIGPerXSIG);
 
         // first, check that user hasn't reached the max limit yet
         if (userVxSIGBalance < maxVxSIGCap) {

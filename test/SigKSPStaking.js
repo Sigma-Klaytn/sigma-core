@@ -85,7 +85,7 @@ contract('SigKSPStaking', function (accounts) {
             );
         });
 
-        it('sigKSP Staking contract retreive SIGToken and KSPToken', async () => {
+        it('sigKSP Staking contract collect SIGToken and KSPToken', async () => {
             //1. Mint tokens to userA
             await SIGToken.mint(bnMantissa(100), { from: userA });
             await KSPToken.mint(bnMantissa(2000), { from: userA });
