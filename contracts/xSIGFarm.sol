@@ -24,6 +24,10 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     /// @dev contract addresses are by default unable to stake xSIG, they must be previously whitelisted to stake xSIG
     Whitelist public whitelist;
 
+    /// @notice set start time for getting a week count.
+    uint256 public immutable startTime;
+    uint256 constant WEEK = 86400 * 7;
+
     struct UserInfo {
         uint256 stakedXSIG; // staked xSIG of the user
         uint256 lastRelease; // last release timestamp for checking pending vxSIG. last vxSIG claim time or first deposit time.
@@ -45,6 +49,10 @@ contract xSIGFarm is Ownable, IxSIGFarm {
         uint256 indexed totalStakedAmount
     );
     event Claimed(address indexed user, uint256 indexed amount);
+
+    constructor() {
+        startTime = (block.timestamp / WEEK) * WEEK;
+    }
 
     /* ========== External Function  ========== */
 
@@ -260,5 +268,12 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     {
         require(_address != address(0), "zero address");
         return userInfoOf[_address].stakedXSIG;
+    }
+
+    /**
+     @notice get week index of the xSIGFarm
+     */
+    function getWeek() public view returns (uint256) {
+        return (block.timestamp - startTime) / WEEK;
     }
 }

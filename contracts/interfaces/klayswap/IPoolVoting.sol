@@ -8,7 +8,9 @@ interface IPoolVoting {
 
     function claimReward(address exchange) external;
 
-    function claimRewardAll() external;
+    function userVotingPoolCount(address user) external view returns (uint256);
 
-    function removeAllVoting() external;
+    // function claimRewardAll() external;
+
+    // function removeAllVoting() external;
 }

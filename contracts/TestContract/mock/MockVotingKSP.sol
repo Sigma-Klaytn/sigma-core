@@ -110,6 +110,18 @@ contract MockVotingKSP is IERC20, IVotingKSP {
         return true;
     }
 
+    function unlockKSP() external override {}
+
+    function refixBoosting(uint256 lockPeriodRequested) external override {}
+
+    function claimReward() external override {}
+
+    function getCurrentBalance(address account)
+        external
+        view
+        returns (uint256)
+    {}
+
     /**
         @notice Transfer tokens from one address to another
         @param _from The address which you want to send tokens from

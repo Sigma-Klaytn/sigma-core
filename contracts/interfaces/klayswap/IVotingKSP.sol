@@ -6,14 +6,20 @@ interface IVotingKSP {
 
     function lockedKSP(address account) external view returns (uint256);
 
-    //TODO: 아래는 ABI 받고 주석 풀면됨.
-    // function unlockKSP() external;
+    function unlockKSP() external;
 
-    // function refixBoosting(uint256 lockPeriodRequested) external;
+    function refixBoosting(uint256 lockPeriodRequested) external;
 
-    // function claimReward() external;
+    function claimReward() external;
+
+    function getCurrentBalance(address account) external view returns (uint256);
 
     // function compoundReward() external;
+
+    function getPriorBalance(address user, uint256 blockNumber)
+        external
+        view
+        returns (uint256);
 
     function balanceOf(address account) external view returns (uint256);
 }

@@ -16,4 +16,6 @@ interface IxSIGFarm {
     function claim() external;
 
     function getStakedXSIG(address _addr) external view returns (uint256);
+
+    function startTime() external view returns (uint256);
 }

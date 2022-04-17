@@ -46,15 +46,19 @@ contract('KSPVault', function (accounts) {
             console.log('Prepare for tests...');
             // kspVault = await makeKSPVault(
             //     '0x2F3713F388BC4b8b364a7A2d8D57c5Ff4E054830',
-            //     '0xc6a2ad8cc6e4a7e08fc37cc5954be07d499e7654'
+            //     '0xc6a2ad8cc6e4a7e08fc37cc5954be07d499e7654',
+            //     '0x71b59e4bc2995b57aa03437ed645ada7dd5b1890'
             // );
+
+            let newKSPVault = '0x1B0158c0ABcca3d46aedC67cCA29A69d3b4551eA'
 
             poolVoting = await IPoolVoting.at(poolVotingAddress);
             kspVault = await KSPVault.at(
-                '0x90f14218Da7aB6896CBBf691eb1Cb2E8B6BDB7A4'
+                newKSPVault
             );
 
-            //lockedKSP function 있는 KSPVault 0xab64562EDdD508995cbCC90e8103847729D94903
+
+            // //lockedKSP function 있는 KSPVault 0xab64562EDdD508995cbCC90e8103847729D94903
             votingKSP = await IVotingKSP.at(
                 '0x2F3713F388BC4b8b364a7A2d8D57c5Ff4E054830'
             );
@@ -95,22 +99,22 @@ contract('KSPVault', function (accounts) {
         });
 
         it(`tranfer KSP`, async () => {
-            console.log(
-                `before kspVault ksp balance`,
-                (await KSP.balanceOf(kspVault.address)).toString()
-            );
+            // console.log(
+            //     `before kspVault ksp balance`,
+            //     (await KSP.balanceOf(kspVault.address)).toString()
+            // );
 
-            // await KSP.transfer(kspVault.address, bnMantissa(1), { from: user });
+            // // await KSP.transfer(kspVault.address, bnMantissa(1), { from: user });
 
-            console.log(
-                `after kspVault ksp balance`,
-                (await KSP.balanceOf(kspVault.address)).toString()
-            );
+            // console.log(
+            //     `after kspVault ksp balance`,
+            //     (await KSP.balanceOf(kspVault.address)).toString()
+            // );
 
-            console.log(
-                'user KSP balance',
-                (await KSP.balanceOf(user)).toString()
-            );
+            // console.log(
+            //     'user KSP balance',
+            //     (await KSP.balanceOf(user)).toString()
+            // );
         });
 
         it(`lock balance`, async () => {
@@ -121,35 +125,35 @@ contract('KSPVault', function (accounts) {
             // );
             //lock 할 때 정수만 받음
 
-            console.log(
-                `before kspVault ksp balance`,
-                (await KSP.balanceOf(kspVault.address)).toString()
-            );
+            // console.log(
+            //     `before kspVault ksp balance`,
+            //     (await KSP.balanceOf(kspVault.address)).toString()
+            // );
 
             // await KSP.transfer(kspVault.address, bnMantissa(1), { from: user });
 
-            console.log(
-                `after kspVault ksp balance`,
-                (await KSP.balanceOf(kspVault.address)).toString()
-            );
+            // console.log(
+            //     `after kspVault ksp balance`,
+            //     (await KSP.balanceOf(kspVault.address)).toString()
+            // );
 
-            console.log(
-                `after vkspVault ksp balance`,
-                (await vKSP.balanceOf(kspVault.address)).toString()
-            );
+            // console.log(
+            //     `after vkspVault ksp balance`,
+            //     (await vKSP.balanceOf(kspVault.address)).toString()
+            // );
 
-            console.log(
-                'locked user ksp',
-                (await votingKSP.lockedKSP(user)).toString()
-            );
+            // console.log(
+            //     'locked user ksp',
+            //     (await votingKSP.lockedKSP(user)).toString()
+            // );
 
-            console.log(
-                'locked user kspVault',
-                (await votingKSP.lockedKSP(kspVault.address)).toString()
-            );
+            // console.log(
+            //     'locked user kspVault',
+            //     (await votingKSP.lockedKSP(kspVault.address)).toString()
+            // );
 
             //[case 1]] EOA
-            // let receipt = await votingKSP.lockKSP(1, 1555200000, {
+            // receipt = await votingKSP.lockKSP(1, 1555200000, {
             //     from: user
             // });
 
@@ -157,18 +161,29 @@ contract('KSPVault', function (accounts) {
             // let receipt = await kspVault.lockKSP(1, 1555200000);
 
             let valutVKSP = await votingKSP.balanceOf(kspVault.address);
-            console.log(valutVKSP.toString())
+            console.log('valut vKSP balance :', valutVKSP.toString())
 
-            let receipt = await poolVoting.addVoting(KlayKSPLpAddress, 1, { from: })
+            // receipt = await kspVault.addVoting(KlayKSPLpAddress, 1)
 
-            valutVKSP = await votingKSP.balanceOf(kspVault.address);
-            console.log(valutVKSP.toString())
+            // valutVKSP = await votingKSP.balanceOf(kspVault.address);
+            // console.log(valutVKSP.toString())
             // console.log(
             //     'locked user lockckjlafsdjls;fj;laskdf',
             //     (await kspVault.lockedKSP(user)).toString()
             // );
 
             // console.log('11111', receipt);
+
+            let userVotingPoolCount = await poolVoting.userVotingPoolCount(kspVault.address)
+            console.log("user voting pool count : ", userVotingPoolCount.toString())
+
+
+            let userVKSP = await votingKSP.balanceOf(user);
+            console.log('valut vKSP balance :', valutVKSP.toString())
+
+            let currentVaultVKSP = await votingKSP.getCurrentBalance(kspVault.address)
+            console.log("currentVaultVKSP : ", currentVaultVKSP.toString())
+
         });
     });
-});
+}); 

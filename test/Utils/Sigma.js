@@ -46,8 +46,8 @@ async function makeDepositingVault(opts = {}) {
 async function makeVault(opts = {}) {
     return await Vault.new();
 }
-async function makeKSPVault(kspVotingAddress, kspTokenaddress, opts = {}) {
-    return await KSPVault.new(kspVotingAddress, kspTokenaddress);
+async function makeKSPVault(kspVotingAddress, kspTokenaddress, poolVotingAddress, opts = {}) {
+    return await KSPVault.new(kspVotingAddress, kspTokenaddress, poolVotingAddress);
 }
 
 async function makeMockVotingKSP(kspToken, opts = {}) {
