@@ -4,8 +4,10 @@ pragma solidity ^0.8.9;
 import "./dependencies/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/klayswap/IVotingKSP.sol";
+import "./interfaces/klayswap/IPoolVoting.sol";
+import "./interfaces/sigma/ISigmaVoter.sol";
 
-contract KSPConverter is IERC20, Ownable {
+contract KlayswapEscrow is IERC20, Ownable {
     string public constant name = "sigKSP: Tokenized vKSP";
     string public constant symbol = "sigKSP";
     uint8 public constant decimals = 18;
@@ -17,14 +19,20 @@ contract KSPConverter is IERC20, Ownable {
     //KSP contracts
     IERC20 public immutable kspToken;
     IVotingKSP public immutable votingKSP;
+    IPoolVoting public immutable poolVoting;
 
     uint256 public constant MAX_LOCK_PERIOD = 1555200000;
 
     event DepositKSP(address depositer, uint256 amount);
 
-    constructor(IERC20 _kspToken, IVotingKSP _votingKSP) {
+    constructor(
+        IERC20 _kspToken,
+        IVotingKSP _votingKSP,
+        IPoolVoting _poolVoting
+    ) {
         kspToken = _kspToken;
         votingKSP = _votingKSP;
+        poolVoting = _poolVoting;
 
         //approve VotingKSP to transfer KSP
         _kspToken.approve(address(_votingKSP), type(uint256).max);
@@ -101,4 +109,44 @@ contract KSPConverter is IERC20, Ownable {
 
         return true;
     }
+
+    /**
+        @notice Submit vote to klayswap.
+        @param exchange : Pool address. 
+        @param amount : The amount can be entered in integer units  
+     */
+    function addVoting(address exchange, uint256 amount) external {}
+
+    /**
+        @notice Submit all votes to klayswap.
+        @param exchange : Pool address. 
+        @param amount : The amount can be entered in integer unit
+     */
+    function addAllVotings() external {}
+
+    function removeVoting(address exchange, uint256 amount) external {}
+
+    function claimReward(address exchange) external {}
+
+    function userVotingPoolAmount(address user, uint256 poolIndex)
+        external
+        view
+        returns (uint256)
+    {}
+
+    function userVotingPoolAddress(address user, uint256 poolIndex)
+        external
+        view
+        returns (address)
+    {}
+
+    function userVotingPoolCount(address user)
+        external
+        view
+        returns (uint256)
+    {}
+
+    function claimRewardAll() external {}
+
+    function removeAllVoting() external {}
 }
