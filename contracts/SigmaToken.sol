@@ -714,7 +714,7 @@ abstract contract KIP7Pausable is KIP13, KIP7, Pausable {
     }
 }
 
-contract SIG is
+contract SigmaToken is
     KIP7,
     KIP7Mintable,
     KIP7Burnable,
