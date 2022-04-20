@@ -29,7 +29,7 @@ contract TokenSale is Ownable {
     uint256 public phase2EndTs;
 
     uint256 public immutable HOUR = 3600;
-    uint256 public immutable TOTAL_SIG_SUPPLY = 70000000000000000000000000; //70M Token
+    uint256 public immutable TOTAL_SIG_SUPPLY = 9000000000000000000000000; //9M Token
 
     event InitialInfoSet(
         uint256 phase1StartTs,
@@ -177,6 +177,21 @@ contract TokenSale is Ownable {
             );
             return (userDeposit.amount * withdrawablePortion) / 1e18;
         }
+    }
+
+    function _getWithdrawableTokenAmount() external view returns (uint256) {
+        DepositInfo memory userDeposit = depositOf[msg.sender];
+        if (userDeposit.amount == 0 || userDeposit.tokensClaimed) {
+            return 0;
+        }
+
+        uint256 portion = _getWithdrawableTokenPortion(
+            userDeposit.amount,
+            totalDeposit
+        );
+        uint256 amount = (portion * TOTAL_SIG_SUPPLY) / 1e18;
+
+        return amount;
     }
 
     /* ========== INTERNAL FUNCTIONS ========== */
