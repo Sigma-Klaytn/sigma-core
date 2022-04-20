@@ -179,7 +179,7 @@ contract TokenSale is Ownable {
         }
     }
 
-    function _getWithdrawableTokenAmount() external view returns (uint256) {
+    function getWithdrawableTokenAmount() external view returns (uint256) {
         DepositInfo memory userDeposit = depositOf[msg.sender];
         if (userDeposit.amount == 0 || userDeposit.tokensClaimed) {
             return 0;
