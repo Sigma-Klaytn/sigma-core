@@ -1,265 +1,149 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
 import "./dependencies/Ownable.sol";
 import "./interfaces/sigma/IvxERC20.sol";
-import "./interfaces/sigma/IxSIGFarm.sol";
 import "./interfaces/klayswap/IPoolVoting.sol";
 import "./interfaces/klayswap/IVotingKSP.sol";
 import "./interfaces/sigma/ISigmaVoter.sol";
 
-// import "./interfaces/solidly/IBaseV1Voter.sol";
-
 contract SigmaVoter is Ownable, ISigmaVoter {
     IvxERC20 public vxSIG;
-    IPoolVoting public poolVoting;
-    IVotingKSP public votingKSP;
-    IxSIGFarm public xSIGFarm;
 
-    uint256 constant WEEK = 86400 * 7;
-    uint256 public startTime;
+    /// @notice Total pool count submitting to klayswap
+    uint256 public constant MAX_SUBMIT_POOL = 10;
+    /// @notice pools that is determined by Sigma Vote among the MAX_SUBMIT_POOL
+    uint256 public constant TOP_VOTES_POOL_COUNT = 7;
+    /// @notice pools that is expected to have top yield. this is will be used for abstentions or votes that was not made it to TOP_VOTE.
+    uint256 public constant TOP_YIELD_POOL_COUNT = 3;
 
-    // the maximum number of pools to submit a vote for
-    // must be low enough that `submitVotes` can submit the vote
-    // data without the call reaching the block gas limit
-    uint256 public constant MAX_SUBMITTED_VOTES = 50;
+    /// @notice save more vote pool for buffer. This is for when user withdraw votes from the pool.
+    uint256 public constant MAX_VOTES_WITH_BUFFER =
+        TOP_VOTES_POOL_COUNT + 10 + 1;
 
-    // beyond the top `MAX_SUBMITTED_VOTES` pools, we also record several
-    // more highest-voted pools. this mitigates against inaccuracies
-    // in the lower end of the vote weights that can be caused by negative voting.
-    uint256 constant MAX_VOTES_WITH_BUFFER = MAX_SUBMITTED_VOTES + 10;
+    uint256 public USER_MAX_VOTE_POOL = 10;
 
-    // token -> week -> weight allocated
-    mapping(address => mapping(uint256 => int256)) public poolVotes;
-    // user -> week -> weight used
-    mapping(address => mapping(uint256 => uint256)) public userVotes;
+    /// @notice total used vxSIG for vote
+    uint256 public totalUsedVxSIG;
 
-    //user -> week ->  pool -> weight used
-    mapping(address => mapping(uint256 => mapping(address => uint256))) userPoolVotes;
+    /// @notice pool -> total vxSIG allocated
+    mapping(address => PoolInfo) public poolInfos;
+    address[] public poolAddresses;
+    struct PoolInfo {
+        uint256 vxSIGAmount;
+        bool isInitiated;
+        uint256 listPointer;
+        uint8 topVotesIndex;
+    }
 
-    // [uint24 id][int40 poolVotes]
-    // handled as an array of uint64 to allow memory-to-storage copy
-    mapping(uint256 => uint64[MAX_VOTES_WITH_BUFFER]) topVotes;
+    /// @notice user -> total voted vxSIG
+    mapping(address => uint256) public userTotalUsedVxSIG;
+    /// @notice user -> PoolData vxSIG for a pool
+    mapping(address => PoolVote[]) public userPoolVotes;
+    /// @notice user -> pool -> isVoted
+    mapping(address => mapping(address => UserPoolInfo)) public userPoolInfos;
 
-    address[] poolAddresses;
-    mapping(address => PoolData) poolData;
+    address[] public topYieldPools;
+    /// always first one is 0;
+    uint64[MAX_VOTES_WITH_BUFFER] public topVotes;
 
-    uint256 lastWeek; // week of the last received vote (+1)
-    uint256 topVotesLength; // actual number of items stored in `topVotes`
-    uint256 minTopVote; // smallest vote-weight for pools included in `topVotes`
-    uint256 minTopVoteIndex; // `topVotes` index where the smallest vote is stored (+1)
+    uint256 public topVotesLength; // actual number of items stored in `topVotes`
+    uint256 public minTopVote; // smallest vote-weight for pools included in `topVotes`
+    uint256 public minTopVoteIndex; // `topVotes` index where the smallest vote is stored (always +1 cause it has 0 at first)
 
-    struct Vote {
+    struct PoolVote {
         address pool;
-        int256 weight;
+        uint256 vxSIGAmount;
     }
 
-    struct PoolData {
-        uint24 addressIndex; // address index : 이 pool 의 주소 데이터의 인덱스
-        uint16 currentWeek; // 그 주에 투표를 했었는지 안했었는지를 확인하는 데이터
-        uint8 topVotesIndex; // 이건 모르겠음.. Top Vote 에서 얘가 몇번째인지 확인하는 걸까..? 예를 들어 탑보트가 20 개 있는데 이게 30 개 한다던지 이런거..
+    struct UserPoolInfo {
+        uint256 poolVoteIndex;
+        bool isVoted;
     }
-
-    event VotedForPoolIncentives(
-        address indexed voter,
-        address[] pools,
-        int256[] voteWeights,
-        uint256 usedWeight,
-        uint256 totalWeight
-    );
-    event PoolProtectionSet(
-        address address1,
-        address address2,
-        uint40 lastUpdate
-    );
-    event SubmittedVote(address caller, address[] pools, int256[] weights);
 
     constructor() {
-        // position 0 is empty so that an ID of 0 can be interpreted as unset
+        // poolAddress[0] is always empty. So if (poolInfo[x].listPointer == 0) means no pool set yet.
         poolAddresses.push(address(0));
     }
 
-    function setInitialInfo(
-        IvxERC20 _vxSIG,
-        IPoolVoting _poolVoting,
-        IVotingKSP _votingKSP,
-        IxSIGFarm _IxSIGFarm
-    ) external onlyOwner {
-        vxSIG = _vxSIG;
-        poolVoting = _poolVoting;
-        votingKSP = _votingKSP;
-        IxSIGFarm = _IxSIGFarm;
-        startTime = IxSIGFarm.startTime();
-    }
-
-    function getWeek() public view returns (uint256) {
-        if (startTime == 0) return 0;
-        return (block.timestamp - startTime) / WEEK;
-    }
+    /* ========== External / Public Function  ========== */
 
     /**
-        @notice The current pools and weights that would be submitted
-                when calling `submitVotes`
+     @notice withdraws staked xSIG
+     @notice You should be aware that amount unit is ETH not wei.
+     @param _pools array of pools to vote.
+     @param _vxSIGAmounts array of the amount of vxSIG to vote. IT SHOULD BE ETH. 
      */
-    function getCurrentVotes()
-        external
-        view
-        override
-        returns (Vote[] memory votes)
-    {
-        (address[] memory pools, int256[] memory weights) = _currentVotes();
-        votes = new Vote[](pools.length);
-        for (uint256 i = 0; i < votes.length; i++) {
-            votes[i] = Vote({pool: pools[i], weight: weights[i]});
-        }
-        return votes;
-    }
-
-    /**
-        @notice Get an account's unused vote weight for for the current week
-        @param _user Address to query
-        @return uint Amount of unused weight
-     */
-    function availableVotes(address _user) external view returns (uint256) {
-        uint256 week = getWeek();
-        uint256 usedWeight = userVotes[_user][week];
-        uint256 totalWeight = vxSIG.balanceOf(_user);
-        return totalWeight - usedWeight;
-    }
-
-    /**
-        @notice Vote for one or more pools
-        @dev Vote-weights received via this function are aggregated but not sent to Klayswap.
-             To submit the vote to Klayswap you must call `submitVotes`.
-             Voting does not carry over between weeks, votes must be resubmitted.
-        @param _pools Array of pool addresses to vote for
-        @param _weights Array of vote weights.
-     */
-    function voteForPools(address[] calldata _pools, int256[] calldata _weights)
-        external
-    {
+    function addAllPoolVote(
+        address[] calldata _pools,
+        uint256[] calldata _vxSIGAmounts
+    ) external {
         require(
-            _pools.length == _weights.length,
-            "_pools.length != _weights.length"
+            _pools.length == _vxSIGAmounts.length,
+            "Pool length doesn't match with vxSIGAmounts length."
         );
         require(_pools.length > 0, "Must vote for at least one pool");
 
-        uint256 week = getWeek();
-        uint256 totalUserWeight;
+        uint256 _totalVxSIGUsed;
 
-        // copy these values into memory to avoid repeated SLOAD / SSTORE ops
-        uint256 _topVotesLengthMem = topVotesLength; // 현재 예를 들어 topVote가 3개있다고 치자
-        uint256 _minTopVoteMem = minTopVote; // top vote 에 들어가기 위해 필요한 vote 의 최소값
-        uint256 _minTopVoteIndexMem = minTopVoteIndex; // 몇 번째가 가장 최소 vote 가 들어있는 곳인지 저장
-        uint64[MAX_VOTES_WITH_BUFFER] memory t = topVotes[week]; // topVotes 저장됨
+        // copy values to minimize gas fee.
+        uint256 _topVotesLengthMem = topVotesLength;
+        uint256 _minTopVoteMem = minTopVote;
+        uint256 _minTopVoteIndexMem = minTopVoteIndex;
+        uint64[MAX_VOTES_WITH_BUFFER] memory t = topVotes;
 
-        if (week + 1 > lastWeek) {
-            // it means there has no votes this week
-            _topVotesLengthMem = 0;
-            _minTopVoteMem = 0;
-            lastWeek = week + 1;
-        }
-        for (uint256 x = 0; x < _pools.length; x++) {
-            address _pool = _pools[x];
-            int256 _weight = _weights[x];
-            totalUserWeight += _weight;
+        for (uint256 i = 0; i < _pools.length; i++) {
+            address _pool = _pools[i];
+            uint256 _vxSIG = _vxSIGAmounts[i];
+            require(_vxSIG > 0, "Vote vxSIG should be bigger than 0");
+            _updatePoolVote(_pool, _vxSIG);
+            _totalVxSIGUsed += _vxSIG;
+            userTotalUsedVxSIG[msg.sender] += _vxSIG;
 
-            require(_weight != 0, "Cannot vote zero");
+            //Update top vote logic.
+            uint256 newPoolVxSIGAmount = poolInfos[_pool].vxSIGAmount;
+            uint256 poolAddressIndex = poolInfos[_pool].listPointer;
+            if (poolInfos[_pool].topVotesIndex > 0) {
+                uint256 poolTopVoteIndex = poolInfos[_pool].topVotesIndex;
 
-            // update accounting for this week's votes
-            int256 poolWeight = poolVotes[_pool][week];
-            uint256 id = poolData[_pool].addressIndex;
-            if (poolWeight == 0 || poolData[_pool].currentWeek <= week) {
-                if (id == 0) {
-                    id = poolAddresses.length;
-                    poolAddresses.push(_pool);
-                }
-                poolData[_pool] = PoolData({
-                    addressIndex: uint24(id),
-                    currentWeek: uint16(week + 1),
-                    topVotesIndex: 0
-                });
-            }
+                t[poolTopVoteIndex] = pack(
+                    poolAddressIndex,
+                    newPoolVxSIGAmount
+                );
 
-            int256 newPoolWeight = poolWeight + _weight;
-            assert(newPoolWeight < 2**39); // this should never be possible
-
-            poolVotes[_pool][week] = newPoolWeight;
-
-            if (poolData[_pool].topVotesIndex > 0) {
-                // pool already exists within the list
-                uint256 voteIndex = poolData[_pool].topVotesIndex - 1;
-
-                if (newPoolWeight == 0) {
-                    // pool has a new vote-weight of 0 and so is being removed
-                    poolData[_pool] = PoolData({
-                        addressIndex: uint24(id),
-                        currentWeek: 0,
-                        topVotesIndex: 0
-                    });
-                    _topVotesLengthMem -= 1;
-                    if (voteIndex == _topVotesLengthMem) {
-                        delete t[voteIndex];
-                    } else {
-                        t[voteIndex] = t[_topVotesLengthMem];
-                        uint256 addressIndex = t[voteIndex] >> 40;
-                        poolData[poolAddresses[addressIndex]]
-                            .topVotesIndex = uint8(voteIndex + 1);
-                        delete t[_topVotesLengthMem];
-                        if (_minTopVoteIndexMem > _topVotesLengthMem) {
-                            // the value we just shifted was the minimum weight
-                            _minTopVoteIndexMem = voteIndex + 1;
-                            // continue here to avoid iterating to locate the new min index
-                            continue;
-                        }
-                    }
-                } else {
-                    // modify existing record for this pool within `topVotes`
-                    t[voteIndex] = pack(id, newPoolWeight);
-                    if (absNewPoolWeight < _minTopVoteMem) {
-                        // if new weight is also the new minimum weight
-                        _minTopVoteMem = absNewPoolWeight;
-                        _minTopVoteIndexMem = voteIndex + 1;
-                        // continue here to avoid iterating to locate the new min voteIndex
-                        continue;
-                    }
-                }
-                if (voteIndex == _minTopVoteIndexMem - 1) {
-                    // iterate to find the new minimum weight
+                if (poolTopVoteIndex == _minTopVoteIndexMem) {
+                    // if this pool was the minTopVoteIndex, as there is newly added votes, findMinTopVote again.
                     (_minTopVoteMem, _minTopVoteIndexMem) = _findMinTopVote(
                         t,
-                        _topVotesLengthMem
+                        _topVotesLengthMem + 1
                     );
                 }
-            } else if (_topVotesLengthMem < MAX_VOTES_WITH_BUFFER) {
-                // pool is not in `topVotes`, and `topVotes` contains less than
-                // MAX_VOTES_WITH_BUFFER items, append
-                t[_topVotesLengthMem] = pack(id, newPoolWeight); // 새롭게 추가해서 저장
-                _topVotesLengthMem += 1; // top vote length 를 저장
-                poolData[_pool].topVotesIndex = uint8(_topVotesLengthMem); // top vote 에서 내 위치를 저장
-                if (absNewPoolWeight < _minTopVoteMem || _minTopVoteMem == 0) {
-                    // 만약 새로운 풀의 투표수가 최소 투표수 보다 작거나 최소 투표수 기준이 0이면
-                    // new weight is the new minimum weight
-                    // 새로운 min topvote 가 new pool weight 가 됨
-                    _minTopVoteMem = absNewPoolWeight;
+            } else if (_topVotesLengthMem < MAX_VOTES_WITH_BUFFER - 1) {
+                _topVotesLengthMem += 1;
 
-                    // min top vote index 는 현재 풀의 top vote index 가 됨
-                    _minTopVoteIndexMem = poolData[_pool].topVotesIndex;
+                t[_topVotesLengthMem] = pack(
+                    poolAddressIndex,
+                    newPoolVxSIGAmount
+                );
+                poolInfos[_pool].topVotesIndex = uint8(_topVotesLengthMem);
+
+                if (
+                    newPoolVxSIGAmount < _minTopVoteMem ||
+                    _topVotesLengthMem == 1 // If this is first top vote added,
+                ) {
+                    _minTopVoteMem = newPoolVxSIGAmount;
+                    _minTopVoteIndexMem = _topVotesLengthMem;
                 }
-            } else if (absNewPoolWeight > _minTopVoteMem) {
-                // `topVotes` contains MAX_VOTES_WITH_BUFFER items,
-                // pool is not in the array, and weight exceeds current minimum weight
+            } else if (newPoolVxSIGAmount > _minTopVoteMem) {
+                uint256 addressIndex = t[_minTopVoteIndexMem] >> 40;
+                poolInfos[poolAddresses[addressIndex]].topVotesIndex = 0;
+                t[_minTopVoteIndexMem] = pack(
+                    poolAddressIndex,
+                    newPoolVxSIGAmount
+                );
+                poolInfos[_pool].topVotesIndex = uint8(_minTopVoteIndexMem);
 
-                // replace the pool at the current minimum weight index
-                uint256 addressIndex = t[_minTopVoteIndexMem - 1] >> 40;
-                poolData[poolAddresses[addressIndex]] = PoolData({
-                    addressIndex: uint24(addressIndex),
-                    currentWeek: 0,
-                    topVotesIndex: 0
-                });
-                t[_minTopVoteIndexMem - 1] = pack(id, newPoolWeight);
-                poolData[_pool].topVotesIndex = uint8(_minTopVoteIndexMem);
-
-                // iterate to find the new minimum weight
+                // // iterate to find the new _minTopVoteMem and _minTopVoteIndexMem
                 (_minTopVoteMem, _minTopVoteIndexMem) = _findMinTopVote(
                     t,
                     MAX_VOTES_WITH_BUFFER
@@ -267,118 +151,161 @@ contract SigmaVoter is Ownable, ISigmaVoter {
             }
         }
 
-        // make sure user has not exceeded available weight
-        totalUserWeight += userVotes[msg.sender][week];
-        uint256 totalWeight = tokenLocker.userWeight(msg.sender) / 1e18;
-        require(totalUserWeight <= totalWeight, "Available votes exceeded");
+        totalUsedVxSIG += _totalVxSIGUsed;
 
-        // write memory vars back to storage
-        topVotes[week] = t;
+        topVotes = t;
         topVotesLength = _topVotesLengthMem;
         minTopVote = _minTopVoteMem;
         minTopVoteIndex = _minTopVoteIndexMem;
-        userVotes[msg.sender][week] = totalUserWeight;
-
-        emit VotedForPoolIncentives(
-            msg.sender,
-            _pools,
-            _weights,
-            totalUserWeight,
-            totalWeight
-        );
     }
 
     /**
-        @notice Submit the current votes to Solidly
-        @dev This function is unguarded and so votes may be submitted at any time.
-             Solidly has no restriction on the frequency that an account may vote,
-             however emissions are only calculated from the active votes at the
-             beginning of each epoch week.
+        @notice withdraw certain amount of vxSIGVote from the pool
+        @param _pool pool address to add. 
+        @param _vxSIGAmount vxSIG Amount to withdraw in ETH not wei. 
      */
-    function submitVotes() external returns (bool) {
-        (address[] memory pools, int256[] memory weights) = _currentVotes();
-        //klayswap vote
-        emit SubmittedVote(msg.sender, pools, weights);
-        return true;
-    }
+    function deletePoolVote(address _pool, uint256 _vxSIGAmount) public {
+        require(isPool(_pool), "Invalid pool. This pool never been voted.");
+        require(
+            userPoolInfos[msg.sender][_pool].isVoted,
+            "User never voted to this pool"
+        );
 
-    function _currentVotes()
-        internal
-        view
-        returns (address[] memory pools, int256[] memory weights)
-    {
-        uint256 week = getWeek();
-        uint256 length = 0;
-        if (week + 1 == lastWeek) {
-            // `lastWeek` only updates on a call to `voteForPool`
-            // if the current week is > `lastWeek`, there have not been any votes this week
-            length += topVotesLength;
-        }
+        totalUsedVxSIG -= _vxSIGAmount;
+        userTotalUsedVxSIG[msg.sender] -= _vxSIGAmount;
+        uint256 newPoolVxSIGAmount = poolInfos[_pool].vxSIGAmount -
+            _vxSIGAmount;
 
-        uint256[MAX_VOTES_WITH_BUFFER] memory absWeights;
-        pools = new address[](length);
-        weights = new int256[](length);
+        // copy values to minimize gas fee.
+        uint256 _topVotesLengthMem = topVotesLength;
+        uint256 _minTopVoteMem = minTopVote;
+        uint256 _minTopVoteIndexMem = minTopVoteIndex;
+        uint64[MAX_VOTES_WITH_BUFFER] memory t = topVotes;
 
-        // unpack `topVotes`
-        for (uint256 i = 0; i < length - 2; i++) {
-            (uint256 id, int256 weight) = unpack(topVotes[week][i]);
-            pools[i] = poolAddresses[id];
-            weights[i] = weight;
-            absWeights[i] = abs(weight);
-        }
+        uint256 poolAddressIndex = poolInfos[_pool].listPointer;
+        uint256 poolTopVotesIndex = poolInfos[_pool].topVotesIndex;
 
-        // if more than `MAX_SUBMITTED_VOTES` pools have votes, discard the lowest weights
-        if (length > MAX_SUBMITTED_VOTES) {
-            while (length > MAX_SUBMITTED_VOTES) {
-                uint256 minValue = type(uint256).max;
-                uint256 minIndex = 0;
-                for (uint256 i = 0; i < length; i++) {
-                    uint256 weight = absWeights[i];
-                    if (weight < minValue) {
-                        minValue = weight;
-                        minIndex = i;
+        if (newPoolVxSIGAmount == 0) {
+            if (poolTopVotesIndex > 0) {
+                // If this pool was in topVotes
+                if (poolTopVotesIndex == _topVotesLengthMem) {
+                    // If this pool was at the end of the topVotes
+                    delete t[_topVotesLengthMem];
+                } else {
+                    t[poolTopVotesIndex] = t[_topVotesLengthMem];
+                    uint256 addressIndex = t[poolTopVotesIndex] >> 40;
+                    poolInfos[poolAddresses[addressIndex]]
+                        .topVotesIndex = uint8(poolTopVotesIndex);
+                    delete t[_topVotesLengthMem];
+                    if (_minTopVoteIndexMem == _topVotesLengthMem) {
+                        //if minTopVoteIndexMem was the one moved, change the minTopvoteIndex to moved index.
+                        _minTopVoteIndexMem = poolTopVotesIndex;
                     }
                 }
-                uint256 idx = length - 1;
-                weights[minIndex] = weights[idx];
-                pools[minIndex] = pools[idx];
-                absWeights[minIndex] = absWeights[idx];
-                delete weights[idx];
-                delete pools[idx];
-                length -= 1;
+                _topVotesLengthMem -= 1;
+                if (_topVotesLengthMem == 0) {
+                    _minTopVoteMem = 0;
+                    _minTopVoteIndexMem = 0;
+                }
+                poolInfos[_pool].topVotesIndex = 0;
             }
-            assembly {
-                mstore(pools, length)
-                mstore(weights, length)
+            _updatePoolVxSIGAmount(_pool, 0);
+        } else {
+            if (poolTopVotesIndex > 0) {
+                t[poolTopVotesIndex] = pack(
+                    poolAddressIndex,
+                    newPoolVxSIGAmount
+                );
+                if (newPoolVxSIGAmount < _minTopVoteMem) {
+                    _minTopVoteMem = newPoolVxSIGAmount;
+                    _minTopVoteIndexMem = poolTopVotesIndex;
+                }
             }
+            _updatePoolVxSIGAmount(_pool, newPoolVxSIGAmount);
         }
 
-        // calculate absolute total weight and find the indexes for the hardcoded pools
-        // uint256 totalWeight;
-        // uint256[2] memory fixedVoteIds;
-        // address[2] memory _fixedVotePools = fixedVotePools;
-        // for (uint256 i = 0; i < length - 2; i++) {
-        //     totalWeight += absWeights[i];
-        //     if (pools[i] == _fixedVotePools[0]) fixedVoteIds[0] = i + 1;
-        //     else if (pools[i] == _fixedVotePools[1]) fixedVoteIds[1] = i + 1;
-        // }
+        topVotes = t;
+        topVotesLength = _topVotesLengthMem;
+        minTopVote = _minTopVoteMem;
+        minTopVoteIndex = _minTopVoteIndexMem;
 
-        // // add 5% hardcoded vote for SOLIDsex/SOLID and SEX/WFTM
-        // int256 fixedWeight = int256((totalWeight * 11) / 200);
-        // if (fixedWeight == 0) fixedWeight = 1;
-        // length -= 2;
-        // for (uint256 i = 0; i < 2; i++) {
-        //     if (fixedVoteIds[i] == 0) {
-        //         pools[length + i] = _fixedVotePools[i];
-        //         weights[length + i] = fixedWeight;
-        //     } else {
-        //         weights[fixedVoteIds[i] - 1] += fixedWeight;
-        //     }
-        // }
+        uint256 poolVoteIndex = userPoolInfos[msg.sender][_pool].poolVoteIndex;
+        PoolVote storage userPoolVote = userPoolVotes[msg.sender][
+            poolVoteIndex
+        ];
+        require(
+            userPoolVote.vxSIGAmount >= _vxSIGAmount,
+            "User didn't vote _vxSIGAmount in this pool"
+        );
+        userPoolVote.vxSIGAmount -= _vxSIGAmount;
 
-        //TODO high ksp goes to에 남은 vxSIG 를 투자
+        if (userPoolVote.vxSIGAmount == 0) {
+            //delete from userPoolInfos
+            userPoolInfos[msg.sender][_pool].isVoted = false;
+            userPoolInfos[msg.sender][_pool].poolVoteIndex = 0;
 
-        return (pools, weights);
+            PoolVote[] storage poolVotes = userPoolVotes[msg.sender];
+            if (poolVotes.length != 1) {
+                PoolVote memory poolVoteToMove = poolVotes[
+                    poolVotes.length - 1
+                ];
+                poolVotes[poolVoteIndex] = poolVoteToMove;
+                userPoolInfos[msg.sender][poolVoteToMove.pool]
+                    .poolVoteIndex = poolVoteIndex;
+                poolVotes.pop();
+            } else {
+                delete userPoolVotes[msg.sender];
+            }
+        }
+    }
+
+    /**
+        @notice withdraw user's all of vxSIG vote.
+     */
+    function deleteAllPoolVote() external {
+        PoolVote[] memory userVotes = userPoolVotes[msg.sender];
+        require(userVotes.length > 0, "User didn't vote yet");
+
+        for (uint256 i = 0; i < userVotes.length; i++) {
+            deletePoolVote(userVotes[i].pool, userVotes[i].vxSIGAmount);
+        }
+    }
+
+    /* ========== Restricted Function  ========== */
+
+    function setInitialInfo(address[] calldata _pools, IvxERC20 _vxSIG)
+        external
+        onlyOwner
+    {
+        require(
+            _pools.length == TOP_YIELD_POOL_COUNT,
+            "pool length doesn't match with TOP_YIELD_POOL_COUNT"
+        );
+        vxSIG = _vxSIG;
+        topYieldPools = _pools;
+    }
+
+    /**
+     @notice sets pools that is going to take abstentions. Set all pool at once.
+    */
+    function setTopYieldPools(address[] calldata _pools) external onlyOwner {
+        topYieldPools = _pools;
+    }
+
+    /**
+     @notice set USER_MAX_VOTE_POOL
+     */
+    function setUserMaxVotePool(uint256 _value) external onlyOwner {
+        USER_MAX_VOTE_POOL = _value;
+    }
+
+    /* ========== Internal & Private Function  ========== */
+
+    function _updatePoolVxSIGAmount(address _pool, uint256 newVxSIGAmount)
+        internal
+    {
+        require(isPool(_pool), "It is not registered pool");
+        poolInfos[_pool].vxSIGAmount = newVxSIGAmount;
     }
 
     function _findMinTopVote(
@@ -387,36 +314,214 @@ contract SigmaVoter is Ownable, ISigmaVoter {
     ) internal pure returns (uint256, uint256) {
         uint256 _minTopVoteMem = type(uint256).max;
         uint256 _minTopVoteIndexMem;
-        for (uint256 i = 0; i < length; i++) {
+        for (uint256 i = 1; i < length; i++) {
             uint256 value = t[i] % 2**39;
             if (value < _minTopVoteMem) {
                 _minTopVoteMem = value;
-                _minTopVoteIndexMem = i + 1;
+                _minTopVoteIndexMem = i;
             }
         }
         return (_minTopVoteMem, _minTopVoteIndexMem);
     }
 
-    function abs(int256 value) internal pure returns (uint256) {
-        return uint256(value > 0 ? value : -value);
+    /**
+        @notice update PoolInfo and userPoolInfo,userVotes. 
+        @param _pool pool address to add. 
+        @param _vxSIGAmount vxSIG Amount in ETH not wei. 
+     */
+    function _updatePoolVote(address _pool, uint256 _vxSIGAmount) internal {
+        if (!isPool(_pool)) {
+            addPool(_pool);
+        }
+        require(
+            availableVotes(msg.sender) >= _vxSIGAmount,
+            "insufficient vxSIG to vote"
+        );
+
+        uint256 newVxSIGAmount = poolInfos[_pool].vxSIGAmount + _vxSIGAmount;
+
+        _updatePoolVxSIGAmount(_pool, newVxSIGAmount);
+
+        PoolVote[] storage userVotes = userPoolVotes[msg.sender];
+
+        if (userPoolInfos[msg.sender][_pool].isVoted) {
+            // If already voted to this pool
+            userVotes[userPoolInfos[msg.sender][_pool].poolVoteIndex]
+                .vxSIGAmount += _vxSIGAmount;
+        } else {
+            require(
+                userVotes.length < USER_MAX_VOTE_POOL,
+                "User exceeded max vote pool count."
+            );
+            // If never been voted to this pool
+
+            userVotes.push(PoolVote({pool: _pool, vxSIGAmount: _vxSIGAmount}));
+            uint256 index = userVotes.length - 1;
+
+            userPoolInfos[msg.sender][_pool] = UserPoolInfo({
+                poolVoteIndex: index,
+                isVoted: true
+            });
+        }
     }
 
-    function pack(uint256 id, int256 weight) internal pure returns (uint64) {
-        // tightly pack as [uint24 id][int40 weight] for storage in `topVotes`
-        uint64 value = uint64((id << 40) + abs(weight));
-        // if (weight < 0) value += 2**39;
+    function pack(uint256 id, uint256 vxSIGAmount)
+        internal
+        pure
+        returns (uint64)
+    {
+        uint64 value = uint64((id << 40) + vxSIGAmount);
         return value;
     }
 
     function unpack(uint256 value)
         internal
         pure
-        returns (uint256 id, int256 weight)
+        returns (uint256 id, uint256 vxSIGAmount)
     {
-        // unpack a value in `topVotes`
         id = (value >> 40);
-        weight = int256(value % 2**40);
-        if (weight > 2**39) weight = -(weight % 2**39);
-        return (id, weight);
+        vxSIGAmount = uint256(value % 2**40);
+        return (id, vxSIGAmount);
+    }
+
+    /**
+        @notice add pool and initiate.
+     */
+    function addPool(address _pool) internal returns (uint256) {
+        require(!isPool(_pool), "This pool already has been added.");
+
+        poolInfos[_pool] = PoolInfo({
+            vxSIGAmount: 0,
+            isInitiated: true,
+            listPointer: poolAddresses.length,
+            topVotesIndex: 0
+        });
+        poolAddresses.push(_pool);
+        uint256 length = poolAddresses.length - 1;
+        return length;
+    }
+
+    /* ========== View Function  ========== */
+    /**
+     @notice get current top votes.
+     */
+    function getCurrentTopVotes()
+        external
+        view
+        returns (
+            address[MAX_VOTES_WITH_BUFFER] memory,
+            uint256[MAX_VOTES_WITH_BUFFER] memory
+        )
+    {
+        uint256[MAX_VOTES_WITH_BUFFER] memory weights;
+        address[MAX_VOTES_WITH_BUFFER] memory addresses;
+
+        for (uint256 i = 1; i < topVotesLength + 1; i++) {
+            (uint256 addressIndex, uint256 weight) = unpack(topVotes[i]);
+            weights[i - 1] = uint256(weight);
+            addresses[i - 1] = poolAddresses[addressIndex];
+        }
+        return (addresses, weights);
+    }
+
+    /**
+        @notice getCurrentVotes for submit to Klayswap. It contains pre-setted TOP_YIELD_POOLS.
+        @return pools address of the votes.
+        @return weights address of the weights.
+     */
+    function getCurrentVotes()
+        external
+        view
+        override
+        returns (address[] memory pools, uint256[] memory weights)
+    {
+        uint256 length = TOP_YIELD_POOL_COUNT;
+        length += topVotesLength;
+
+        pools = new address[](length);
+        weights = new uint256[](length);
+
+        for (uint256 i = 1; i < length - TOP_YIELD_POOL_COUNT + 1; i++) {
+            (uint256 addressIndex, uint256 weight) = unpack(topVotes[i]);
+            pools[i - 1] = poolAddresses[addressIndex];
+            weights[i - 1] = weight;
+        }
+        if (length > MAX_SUBMIT_POOL) {
+            while (length > MAX_SUBMIT_POOL) {
+                uint256 minValue = type(uint256).max;
+                uint256 minIndex = 0;
+                for (uint256 i = 0; i < length - TOP_YIELD_POOL_COUNT; i++) {
+                    uint256 weight = weights[i];
+                    if (weight < minValue) {
+                        minValue = weight;
+                        minIndex = i;
+                    }
+                }
+                uint256 idx = length - TOP_YIELD_POOL_COUNT - 1;
+                weights[minIndex] = weights[idx];
+                pools[minIndex] = pools[idx];
+                delete weights[idx];
+                delete pools[idx];
+                length -= 1;
+            }
+
+            assembly {
+                mstore(pools, length)
+                mstore(weights, length)
+            }
+        }
+
+        // Valid VxSIG which is actually vote to klayswap.
+        uint256 totalValidVxSIG = 0;
+        for (uint256 i = 0; i < length - TOP_YIELD_POOL_COUNT; i++) {
+            totalValidVxSIG += weights[i];
+        }
+
+        uint256 vxSIGTotalSupply = vxSIG.totalSupply() / 1e18;
+        uint256 vxSIGNotUsedOrNotValid = vxSIGTotalSupply - totalValidVxSIG;
+
+        uint256 eachDisributedVxSIG = vxSIGNotUsedOrNotValid /
+            TOP_YIELD_POOL_COUNT;
+
+        length -= TOP_YIELD_POOL_COUNT;
+
+        for (uint256 i = 0; i < TOP_YIELD_POOL_COUNT; i++) {
+            pools[length + i] = topYieldPools[i];
+            weights[length + i] = eachDisributedVxSIG;
+        }
+
+        return (pools, weights);
+    }
+
+    /**
+        @notice check if the given address is registered pool.
+     */
+    function isPool(address _pool) public view returns (bool) {
+        return poolInfos[_pool].isInitiated;
+    }
+
+    /**
+        @notice return pool count in sigma vote. -1 because index 0 is empty.
+     */
+    function getPoolCount() public view returns (uint256) {
+        return poolAddresses.length - 1;
+    }
+
+    /**
+        @notice Get an account's unused vote weight for for the current week
+        @param _user Address to query
+        @return uint Amount of unused weight
+     */
+    function availableVotes(address _user) public view returns (uint256) {
+        uint256 userUsedVxSIG = userTotalUsedVxSIG[_user];
+        uint256 totalWeight = vxSIG.balanceOf(_user) / 1e18;
+        return totalWeight - userUsedVxSIG;
+    }
+
+    /**
+        @notice get user total pool vote count.
+     */
+    function getUserVotesCount() external view returns (uint256) {
+        return userPoolVotes[msg.sender].length;
     }
 }

@@ -115,13 +115,8 @@ contract KlayswapEscrow is IERC20, Ownable {
         @param exchange : Pool address. 
         @param amount : The amount can be entered in integer units  
      */
-    function addVoting(address exchange, uint256 amount) external {}
+    function _addVoting(address exchange, uint256 amount) internal {}
 
-    /**
-        @notice Submit all votes to klayswap.
-        @param exchange : Pool address. 
-        @param amount : The amount can be entered in integer unit
-     */
     function addAllVotings() external {}
 
     function removeVoting(address exchange, uint256 amount) external {}

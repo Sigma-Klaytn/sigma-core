@@ -2,8 +2,8 @@
 pragma solidity ^0.8.9;
 
 interface ISigmaVoter {
-    function currentVotes()
+    function getCurrentVotes()
         external
         view
-        returns (address[] memory pools, int256[] memory weights);
+        returns (address[] memory pools, uint256[] memory weights);
 }
