@@ -7,7 +7,8 @@ const {
     bnMantissa,
     BN,
     expectEqual,
-    time
+    time,
+    web3
 } = require('../Utils/JS');
 const { expect } = require('chai');
 
@@ -27,7 +28,7 @@ const MAX_UINT_256 = new BN(2).pow(new BN(256)).sub(new BN(1));
  * <View Function>
  * 1. View public Variables
  * 2. View crucial current Status
- *    1) Total KUSDT
+ *    1) Total KLAY
  *    2) Current Token Price
  *    3) Your Contribution
  *    4) Redeemable Amount
@@ -35,16 +36,16 @@ const MAX_UINT_256 = new BN(2).pow(new BN(256)).sub(new BN(1));
 
 // [CAUTION]
 // --network :  You should run this code below in local environment since expectEvent doesn't work on Klaytn testnet for now.
+// You should fund your ganache accounts more than 10000klay. Use this line >> ganache-cli -e 10000
 
 contract('TokenSale', function (accounts) {
     let root = accounts[0];
-    let receiver = accounts[1]; // Admin address who gets KUSDT at the end of phase2.
+    let receiver = accounts[1]; // Admin address who gets KLAY at the end of phase2.
     let userA = accounts[2];
     let userB = accounts[3];
     let userC = accounts[4];
     let userD = accounts[5];
 
-    let KUSDTToken;
     let SIGToken;
     let TokenSale;
 
@@ -63,14 +64,7 @@ contract('TokenSale', function (accounts) {
         beforeEach(async () => {
             //Deploy from the start.
             SIGToken = await makeErc20Token();
-            KUSDTToken = await makeErc20Token();
             TokenSale = await makeTokenSale();
-
-            //Fund KSUDT worth 10000$
-            await KUSDTToken.mint(bnMantissa(10000), { from: userA });
-            await KUSDTToken.mint(bnMantissa(10000), { from: userB });
-            await KUSDTToken.mint(bnMantissa(10000), { from: userC });
-            await KUSDTToken.mint(bnMantissa(10000), { from: userD });
         });
 
         it('Test : 0.SetInitialInfo', async () => {
@@ -87,7 +81,7 @@ contract('TokenSale', function (accounts) {
                     phase2StartTs,
                     phase2EndTs,
                     SIGToken.address,
-                    KUSDTToken.address,
+                    // KLAYToken.address,
                     receiver,
                     { from: userA } // This function always need to be called by the owner (root)
                 ),
@@ -102,7 +96,6 @@ contract('TokenSale', function (accounts) {
                     phase2StartTs,
                     phase2EndTs,
                     SIGToken.address,
-                    KUSDTToken.address,
                     receiver,
                     { from: root }
                 ),
@@ -115,7 +108,6 @@ contract('TokenSale', function (accounts) {
                     phase1StartTs - MINUTE,
                     phase2EndTs,
                     SIGToken.address,
-                    KUSDTToken.address,
                     receiver,
                     { from: root }
                 ),
@@ -129,7 +121,6 @@ contract('TokenSale', function (accounts) {
                     phase2StartTs,
                     newPhase2EndTs,
                     SIGToken.address,
-                    KUSDTToken.address,
                     receiver,
                     { from: root }
                 ),
@@ -144,7 +135,6 @@ contract('TokenSale', function (accounts) {
                     phase2StartTs,
                     newPhase2EndTs,
                     SIGToken.address,
-                    KUSDTToken.address,
                     receiver,
                     { from: root }
                 ),
@@ -157,7 +147,6 @@ contract('TokenSale', function (accounts) {
                     phase2StartTs,
                     phase2EndTs,
                     SIGToken.address,
-                    KUSDTToken.address,
                     '0x0000000000000000000000000000000000000000',
                     { from: root }
                 ),
@@ -170,7 +159,6 @@ contract('TokenSale', function (accounts) {
                 phase2StartTs,
                 phase2EndTs,
                 SIGToken.address,
-                KUSDTToken.address,
                 receiver,
                 { from: root }
             );
@@ -195,36 +183,30 @@ contract('TokenSale', function (accounts) {
                 phase2StartTs,
                 phase2EndTs,
                 SIGToken.address,
-                KUSDTToken.address,
                 receiver,
                 { from: root }
             );
 
             // 1. Check first 2 reverts.
-
             await expectRevert(
-                TokenSale.deposit(bnMantissa(100)),
+                TokenSale.deposit({ value: bnMantissa(100) }),
                 'Phase 1 did not start yet.'
             );
             // phase 1 starts.
             await time.increase(time.duration.hours(1));
 
             await expectRevert(
-                TokenSale.deposit(0),
+                TokenSale.deposit({ value: 0 }),
                 'Amount should be bigger than 0'
             );
 
 
             // 2. Deposit 
 
-            // This reverts becuase user didn't approve token to TokenSale Contract.
-            await expectRevert.unspecified(TokenSale.deposit(bnMantissa(100), { from: userA }));
-
-            // apporve first 
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userA });
-
             // userA deposits.
-            receipt = await TokenSale.deposit(bnMantissa(100), { from: userA });
+            receipt = await TokenSale.deposit({
+                from: userA, value: bnMantissa(100)
+            });
 
             // Check Event 
             expectEvent(receipt, 'Deposit', {
@@ -241,43 +223,31 @@ contract('TokenSale', function (accounts) {
             //Check Total Deposit amount
             expectEqual(await TokenSale.totalDeposit(), bnMantissa(100));
 
-            //userB, userC, userD deposit each 100,200,300 
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userB });
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userC });
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userD });
-
-            await TokenSale.deposit(bnMantissa(100), { from: userB });
-            await TokenSale.deposit(bnMantissa(200), { from: userC });
-            await TokenSale.deposit(bnMantissa(300), { from: userD });
+            await TokenSale.deposit({ from: userB, value: bnMantissa(100) });
+            await TokenSale.deposit({ from: userC, value: bnMantissa(200) });
+            await TokenSale.deposit({ from: userD, value: bnMantissa(300) });
 
             // Check Total Deposit (100+100+200+300 = 700)
             expectEqual(await TokenSale.totalDeposit(), bnMantissa(700));
 
             // 3. Check last Reverts
-
             // phase 1 ends.
             await time.increase(time.duration.days(4));
 
             await expectRevert(
-                TokenSale.deposit(bnMantissa(100), { from: userA }),
+                TokenSale.deposit({ from: userA, value: bnMantissa(100) }),
                 'Deposit period is already ended'
             );
         });
 
     });
+
     describe('Test : 2. Withdraw at Phase 1 ~ 6. Withdraw KSUDT to receiver (Admin)', () => {
         beforeEach(async () => {
 
             //Deploy from the start.
             SIGToken = await makeErc20Token({ symbol: 'SIG', name: 'SIGMA Token' });
-            KUSDTToken = await makeErc20Token({ symbol: 'KUSDT', name: 'KUSDT Token' });
             TokenSale = await makeTokenSale();
-
-            //Fund KSUDT worth 10000$
-            await KUSDTToken.mint(bnMantissa(10000), { from: userA });
-            await KUSDTToken.mint(bnMantissa(10000), { from: userB });
-            await KUSDTToken.mint(bnMantissa(10000), { from: userC });
-            await KUSDTToken.mint(bnMantissa(10000), { from: userD });
 
             // 0. Preparation.
             let currentTime = parseInt(await time.latest());
@@ -290,7 +260,7 @@ contract('TokenSale', function (accounts) {
                 phase2StartTs,
                 phase2EndTs,
                 SIGToken.address,
-                KUSDTToken.address,
+                // KLAYToken.address,
                 receiver,
                 { from: root }
             );
@@ -298,13 +268,9 @@ contract('TokenSale', function (accounts) {
             //useA, userB, userC deposit each 100,200,300 & userD didn't deposit.
             await time.increase(time.duration.minutes(3));
 
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userA });
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userB });
-            await KUSDTToken.approve(TokenSale.address, MAX_UINT_256, { from: userC });
-
-            await TokenSale.deposit(bnMantissa(100), { from: userA });
-            await TokenSale.deposit(bnMantissa(200), { from: userB });
-            await TokenSale.deposit(bnMantissa(300), { from: userC });
+            await TokenSale.deposit({ from: userA, value: bnMantissa(100) });
+            await TokenSale.deposit({ from: userB, value: bnMantissa(100) });
+            await TokenSale.deposit({ from: userC, value: bnMantissa(100) });
 
         });
 
@@ -327,28 +293,30 @@ contract('TokenSale', function (accounts) {
             const userAWithdrawableAmount = await TokenSale.getWithdrawableAmount({ from: userA });
             console.log('userAWithdrawableAmount : ', userAWithdrawableAmount.toString())
 
-            let totalKUSDTDeposit = await TokenSale.totalDeposit();
-            const userAKUSDTDeposit = (await TokenSale.depositOf(userA))[0];
-            const userAKUSDTBalance = await KUSDTToken.balanceOf(userA)
+            let totalKLAYDeposit = await TokenSale.totalDeposit();
+            const userAKLAYDeposit = (await TokenSale.depositOf(userA))[0];
+            const userAKLAYBalance = new BN((await web3.eth.getBalance(userA)).toString())
+
             let receipt = await TokenSale.withdraw(userAWithdrawableAmount, { from: userA });
 
+            let gasCost = new BN((await getGasFee(receipt)).toString())
 
             expectEvent(receipt, 'Withdrawal', {
                 user: userA,
-                amount: userAKUSDTDeposit
+                amount: userAKLAYDeposit
             })
 
-            expectEqual(await KUSDTToken.balanceOf(userA), userAKUSDTBalance.add(userAWithdrawableAmount));
-            expectEqual(await TokenSale.totalDeposit(), totalKUSDTDeposit.sub(userAKUSDTDeposit));
+            expectEqual((new BN((await web3.eth.getBalance(userA)).toString())).add(gasCost), userAKLAYBalance.add(userAWithdrawableAmount));
+            expectEqual(await TokenSale.totalDeposit(), totalKLAYDeposit.sub(userAKLAYDeposit));
 
             //Deposit again. Phase 1 allow free deposit and withdrawal
-            await TokenSale.deposit(bnMantissa(100), { from: userA });
+            await TokenSale.deposit({ from: userA, value: bnMantissa(100) });
 
             // 3. UserB withdraw half of withdrawableAmount
             const userBWithdrawableAmount = await TokenSale.getWithdrawableAmount({ from: userB })
-            const userBKUSDTDeposit = (await TokenSale.depositOf(userB))[0]
-            const userBKUSDTBalance = await KUSDTToken.balanceOf(userB)
-            totalKUSDTDeposit = await TokenSale.totalDeposit();
+            const userBKLAYDeposit = (await TokenSale.depositOf(userB))[0]
+            const userBKLAYBalance = new BN((await web3.eth.getBalance(userB)).toString())
+            totalKLAYDeposit = await TokenSale.totalDeposit();
 
             const requiredAmount = userBWithdrawableAmount.div(new BN(2));
             receipt = await TokenSale.withdraw(requiredAmount, { from: userB })
@@ -357,9 +325,9 @@ contract('TokenSale', function (accounts) {
                 amount: requiredAmount
             })
 
-            expectEqual((await TokenSale.depositOf(userB))[0], userBKUSDTDeposit.sub(requiredAmount))
+            expectEqual((await TokenSale.depositOf(userB))[0], userBKLAYDeposit.sub(requiredAmount))
             expectEqual(((await TokenSale.depositOf(userB))[1]), false) // depositInfo[1] is withdrewAtPhase2;
-            expectEqual(await TokenSale.totalDeposit(), totalKUSDTDeposit.sub(requiredAmount))
+            expectEqual(await TokenSale.totalDeposit(), totalKLAYDeposit.sub(requiredAmount))
         });
 
         it('Test : 3. Withdraw at Phase 2', async () => {
@@ -375,7 +343,7 @@ contract('TokenSale', function (accounts) {
             //     console.log(`${i + 2} 시 까지`, amount.toString())
             // }
 
-            // [ Result (in case user deposit 100 KUSDT) ]
+            // [ Result (in case user deposit 100 KLAY) ]
             // 1 시 까지 100
             // 2 시 까지 95.83333333333333 (95833333333333333300 wei)
             // 3 시 까지 91.66666666666667 (91666666666666666600 wei)
@@ -402,9 +370,9 @@ contract('TokenSale', function (accounts) {
             // 24 시 까지 4.166666666666666 (4166666666666666600 wei)
 
             // 1. 4 days + 3 mins : 100% withdrawl available
-            const userAKUSDTDeposit = (await TokenSale.depositOf(userA))[0]
+            const userAKLAYDeposit = (await TokenSale.depositOf(userA))[0]
             let userAWithdrawableAmount = await TokenSale.getWithdrawableAmount({ from: userA });
-            let receipt = await TokenSale.withdraw(userAKUSDTDeposit, { from: userA })
+            let receipt = await TokenSale.withdraw(userAKLAYDeposit, { from: userA })
             expectEvent(receipt, 'Withdrawal', {
                 user: userA,
                 amount: userAWithdrawableAmount
@@ -423,8 +391,8 @@ contract('TokenSale', function (accounts) {
             );
 
             // Get User B amount of deposit.
-            const userBKUSDTDeposit = (await TokenSale.depositOf(userB))[0];
-            await expectRevert(TokenSale.withdraw(userBKUSDTDeposit, { from: userB }), 'You can\'t withdraw more than current withdrawable amount')
+            const userBKLAYDeposit = (await TokenSale.depositOf(userB))[0];
+            await expectRevert(TokenSale.withdraw(userBKLAYDeposit, { from: userB }), 'You can\'t withdraw more than current withdrawable amount')
 
             const userBWithdrawableAmount = await TokenSale.getWithdrawableAmount({ from: userB });
             console.log('UserB Withdrawable amount : ', userBWithdrawableAmount.toString())
@@ -467,15 +435,15 @@ contract('TokenSale', function (accounts) {
 
 
             // 2. Mint SIG to root account which is the owner of the contract.
-            await SIGToken.mint(bnMantissa(70000000), { from: root })
+            await SIGToken.mint(bnMantissa(9000000), { from: root })
             await SIGToken.approve(TokenSale.address, MAX_UINT_256, { from: root })
 
             // 3. Release Token.
             let receipt = await TokenSale.releaseToken({ from: root });
             expectEvent(receipt, 'SIGTokenReleased', {
-                releasedTokenAmount: bnMantissa(70000000)
+                releasedTokenAmount: bnMantissa(9000000)
             })
-            expectEqual(await SIGToken.balanceOf(TokenSale.address), bnMantissa(70000000))
+            expectEqual(await SIGToken.balanceOf(TokenSale.address), bnMantissa(9000000))
             expectEqual(await TokenSale.tokensReleased(), true);
 
             // 4. Check revert
@@ -505,7 +473,7 @@ contract('TokenSale', function (accounts) {
             );
 
             // 3. Release Token from owner.
-            await SIGToken.mint(bnMantissa(70000000), { from: root })
+            await SIGToken.mint(bnMantissa(9000000), { from: root })
             await SIGToken.approve(TokenSale.address, MAX_UINT_256, { from: root })
             await TokenSale.releaseToken({ from: root });
 
@@ -520,14 +488,14 @@ contract('TokenSale', function (accounts) {
             // 5. Withdraw Token A : 100 B : 200 : C :300
             const toatlSupply = await TokenSale.TOTAL_SIG_SUPPLY()
             const totalDeposit = await TokenSale.totalDeposit()
-            const userAKUSDTDeposit = ((await TokenSale.depositOf(userA))[0]).mul(bnMantissa(1))
-            const userBKUSDTDeposit = ((await TokenSale.depositOf(userB))[0]).mul(bnMantissa(1))
-            const userCKUSDTDeposit = ((await TokenSale.depositOf(userC))[0]).mul(bnMantissa(1))
+            const userAKLAYDeposit = ((await TokenSale.depositOf(userA))[0]).mul(bnMantissa(1))
+            const userBKLAYDeposit = ((await TokenSale.depositOf(userB))[0]).mul(bnMantissa(1))
+            const userCKLAYDeposit = ((await TokenSale.depositOf(userC))[0]).mul(bnMantissa(1))
 
 
-            const userAReedeamableExpect = (toatlSupply.mul(userAKUSDTDeposit.div(totalDeposit))).div(bnMantissa(1))
-            const userBReedeamableExpect = (toatlSupply.mul(userBKUSDTDeposit.div(totalDeposit))).div(bnMantissa(1))
-            const userCReedeamableExpect = (toatlSupply.mul(userCKUSDTDeposit.div(totalDeposit))).div(bnMantissa(1))
+            const userAReedeamableExpect = (toatlSupply.mul(userAKLAYDeposit.div(totalDeposit))).div(bnMantissa(1))
+            const userBReedeamableExpect = (toatlSupply.mul(userBKLAYDeposit.div(totalDeposit))).div(bnMantissa(1))
+            const userCReedeamableExpect = (toatlSupply.mul(userCKLAYDeposit.div(totalDeposit))).div(bnMantissa(1))
 
             console.log("userAReedeamableExpect : ", userAReedeamableExpect.toString())
             console.log("userBReedeamableExpect : ", userBReedeamableExpect.toString())
@@ -573,27 +541,36 @@ contract('TokenSale', function (accounts) {
         it('Test : 6. Withdraw KSUDT to receiver (Admin)', async () => {
             // 0. Check if it's end of Phase 2
             await expectRevert(TokenSale.adminWithdraw({ from: userA }), 'Ownable: caller is not the owner')
-            await expectRevert(TokenSale.adminWithdraw({ from: root }), 'Phase 2 should end to withdraw KUSDT Tokens.')
+            await expectRevert(TokenSale.adminWithdraw({ from: root }), 'Phase 2 should end to withdraw KLAY Tokens.')
 
             // 1. Check if it's end of Phase 2
             await time.increase(time.duration.days(5));
             const currentTime = parseInt(await time.latest())
             expect(currentTime >= parseInt(await TokenSale.phase2EndTs())).to.be.ok;
 
-            // 2. Check KUSDT Balance of this contract
-            const KUSDTBalance = await KUSDTToken.balanceOf(TokenSale.address);
-            console.log("KUSDT Deposited Balance : ", KUSDTBalance.toString());
-            expectEqual(await TokenSale.totalDeposit(), KUSDTBalance);
+            // 2. Check KLAY Balance of this contract
+            const KLAYBalance = new BN((await web3.eth.getBalance(TokenSale.address)).toString())
+            console.log("KLAY Deposited Balance : ", KLAYBalance.toString());
+            expectEqual(await TokenSale.totalDeposit(), KLAYBalance);
 
-            // 3. Withdraw KUSDT to receiver's account.
+            // 3. Withdraw KLAY to receiver's account.
 
+            const beforeRecieverKLAYBalance = (new BN((await web3.eth.getBalance(receiver)).toString()))
             let receipt = await TokenSale.adminWithdraw({ from: root })
             expectEvent(receipt, 'AdminWithdraw', {
-                withdrawAmount: KUSDTBalance
+                withdrawAmount: KLAYBalance
             })
 
-            const recieverKUSDTBalance = await KUSDTToken.balanceOf(receiver);
-            expectEqual(recieverKUSDTBalance, KUSDTBalance);
+
+            const recieverKLAYBalance = (new BN((await web3.eth.getBalance(receiver)).toString()))
+            console.log((new BN((await web3.eth.getBalance(receiver)).toString())).toString())
+            expectEqual(recieverKLAYBalance.sub(beforeRecieverKLAYBalance), KLAYBalance);
         });
     });
 });
+
+async function getGasFee(txInfo) {
+    const tx = await web3.eth.getTransaction(txInfo.tx);
+    const gasCost = tx.gasPrice * (txInfo.receipt.gasUsed);
+    return gasCost
+}

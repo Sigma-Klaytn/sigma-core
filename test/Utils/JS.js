@@ -149,5 +149,6 @@ module.exports = {
     expectRevert,
     expectEvent,
     expectDeepEqualBN,
-    uq112
+    uq112,
+    web3
 };

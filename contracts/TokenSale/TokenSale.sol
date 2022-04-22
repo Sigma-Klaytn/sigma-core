@@ -48,8 +48,8 @@ contract TokenSale is Ownable {
     /**
         @notice Deposit KLAY into this contract, only allowed during Phase1.
      */
-    function deposit(uint256 _amount) external payable {
-        require(_amount != msg.value, "Amount doesn't equal to msg.value");
+    function deposit() external payable {
+        uint256 _amount = msg.value;
         require(block.timestamp > phase1StartTs, "Phase 1 did not start yet.");
         require(
             block.timestamp < phase2StartTs,

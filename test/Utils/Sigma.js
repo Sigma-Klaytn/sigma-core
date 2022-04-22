@@ -18,7 +18,7 @@ const Vault = artifacts.require('Vault');
 const KSPVault = artifacts.require('KSPVault');
 const MockVotingKSP = artifacts.require('MockVotingKSP');
 const IPoolVoting = artifacts.require('IPoolVoting');
-const KlayswapEscrow = artifacts.require('KlayswapEscrow');
+const KSPConverter = artifacts.require('KSPConverter');
 const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
 const TokenSale = artifacts.require('TokenSale');
@@ -55,7 +55,7 @@ async function makeMockVotingKSP(kspToken, opts = {}) {
 }
 
 async function makeKSPConverter(kspToken, votingKSP, opts = {}) {
-    return await KlayswapEscrow.new(kspToken, votingKSP);
+    return await KSPConverter.new(kspToken, votingKSP);
 }
 
 async function makeSigKSPStaking(opts = {}) {
@@ -92,7 +92,7 @@ module.exports = {
     Vault,
     KSPVault,
     MockVotingKSP,
-    KlayswapEscrow,
+    KSPConverter,
     SigKSPStaking,
     SIGLocker,
     TokenSale,
