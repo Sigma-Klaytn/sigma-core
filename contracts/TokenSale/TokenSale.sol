@@ -11,7 +11,6 @@ contract TokenSale is Ownable {
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public SIG;
-    IERC20 public KUSDT;
     bool public tokensReleased;
     uint256 public totalSIGSupply;
     uint256 public totalDeposit;
@@ -47,18 +46,16 @@ contract TokenSale is Ownable {
     constructor() {}
 
     /**
-        @notice Deposit KUSDT into this contract, only allowed during Phase1.
+        @notice Deposit KLAY into this contract, only allowed during Phase1.
      */
-    function deposit(uint256 _amount) external {
+    function deposit() external payable {
+        uint256 _amount = msg.value;
         require(block.timestamp > phase1StartTs, "Phase 1 did not start yet.");
         require(
             block.timestamp < phase2StartTs,
             "Deposit period is already ended"
         );
         require(_amount > 0, "Amount should be bigger than 0");
-
-        //Transfer KUSDT
-        KUSDT.safeTransferFrom(msg.sender, address(this), _amount);
 
         // Update User Deposit Balance
         DepositInfo storage userDeposit = depositOf[msg.sender];
@@ -71,7 +68,7 @@ contract TokenSale is Ownable {
     }
 
     /**
-        @notice Withdraw KUSDT from this contract, allowed during Phase1 and Phase2.
+        @notice Withdraw KLAY from this contract, allowed during Phase1 and Phase2.
      */
     function withdraw(uint256 _requiredAmount) external {
         require(
@@ -117,7 +114,7 @@ contract TokenSale is Ownable {
         userDeposit.amount -= _requiredAmount;
         totalDeposit -= _requiredAmount;
 
-        KUSDT.transfer(msg.sender, _requiredAmount);
+        payable(msg.sender).transfer(_requiredAmount);
 
         emit Withdrawal(msg.sender, _requiredAmount);
     }
@@ -229,7 +226,6 @@ contract TokenSale is Ownable {
         uint256 _phase2StartTs,
         uint256 _phase2EndTs,
         address _SIG,
-        address _KUSDT,
         address _receiver
     ) external onlyOwner {
         require(
@@ -254,7 +250,6 @@ contract TokenSale is Ownable {
         phase2StartTs = _phase2StartTs;
         phase2EndTs = _phase2EndTs;
         SIG = IERC20(_SIG);
-        KUSDT = IERC20(_KUSDT);
         receiver = _receiver;
 
         emit InitialInfoSet(
@@ -271,15 +266,17 @@ contract TokenSale is Ownable {
     function adminWithdraw() external onlyOwner {
         require(
             block.timestamp > phase2EndTs,
-            "Phase 2 should end to withdraw KUSDT Tokens."
+            "Phase 2 should end to withdraw KLAY Tokens."
         );
 
-        uint256 balanceOfKUSDT = KUSDT.balanceOf(address(this));
-        require(balanceOfKUSDT > 0, "There is no withdrawable amount of KUSDT");
+        uint256 balanceOfKLAY = address(this).balance;
 
-        KUSDT.transfer(receiver, balanceOfKUSDT);
+        require(balanceOfKLAY > 0, "There is no withdrawable amount of KLAY");
 
-        emit AdminWithdraw(balanceOfKUSDT);
+        // KLAY.transfer(receiver, balanceOfKLAY);
+        payable(receiver).transfer(balanceOfKLAY);
+
+        emit AdminWithdraw(balanceOfKLAY);
     }
 
     /**
@@ -299,7 +296,7 @@ contract TokenSale is Ownable {
     }
 
     /**
-        @notice Change KUSDT receiver address
+        @notice Change KLAY receiver address
      */
     function setReceiver(address _receiver) external onlyOwner {
         require(_receiver != address(0), "Invalid receiver address");
