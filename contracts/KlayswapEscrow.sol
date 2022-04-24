@@ -21,18 +21,43 @@ contract KlayswapEscrow is IERC20, Ownable {
     IVotingKSP public immutable votingKSP;
     IPoolVoting public immutable poolVoting;
 
+    ISigmaVoter public immutable sigmaVoter;
+
     uint256 public constant MAX_LOCK_PERIOD = 1555200000;
 
+    // mapping(address => bool) public operators;
+
     event DepositKSP(address depositer, uint256 amount);
+
+    // /**
+    //  @notice Approve contracts to mint and renounce ownership
+    // @dev In production the only minters should be `SIGFarm`
+    //          Addresses are given via dynamic array to allow extra minters during testing
+    //  */
+    // function setOperator(address[] calldata _operators) external onlyOwner {
+    //     for (uint256 i = 0; i < _operators.length; i++) {
+    //         operators[_operators[i]] = true;
+    //     }
+    // }
+
+    // /**
+    //  @notice Revoke authority to mint and burn the given token.
+    //  */
+    // function revokeOperator(address _operator) external onlyOwner {
+    //     require(operators[_operator], "This address is not an operator");
+    //     operators[_operator] = false;
+    // }
 
     constructor(
         IERC20 _kspToken,
         IVotingKSP _votingKSP,
-        IPoolVoting _poolVoting
+        IPoolVoting _poolVoting,
+        ISigmaVoter _sigmaVoter
     ) {
         kspToken = _kspToken;
         votingKSP = _votingKSP;
         poolVoting = _poolVoting;
+        sigmaVoter = _sigmaVoter;
 
         //approve VotingKSP to transfer KSP
         _kspToken.approve(address(_votingKSP), type(uint256).max);
@@ -110,38 +135,76 @@ contract KlayswapEscrow is IERC20, Ownable {
         return true;
     }
 
+    //TODO
+
     /**
         @notice Submit vote to klayswap.
         @param exchange : Pool address. 
         @param amount : The amount can be entered in integer units  
      */
-    function _addVoting(address exchange, uint256 amount) internal {}
+    function _addVoting(address exchange, uint256 amount) internal {
+        poolVoting.addVoting(exchange, amount);
+    }
 
-    function addAllVotings() external {}
+    function addAllVotings() external {
+        (
+            uint256 weightsTotal,
+            address[] memory pools,
+            uint256[] memory weights
+        ) = sigmaVoter.getCurrentVotes();
+        require(
+            pools.length == weights.length,
+            "Pool length and weight length do not match."
+        );
+        require(pools.length > 0, "Voting arrays are empty.");
 
-    function removeVoting(address exchange, uint256 amount) external {}
+        uint256 vKspBalance = votingKSP.balanceOf(address(this)); //in wei
 
-    function claimReward(address exchange) external {}
+        for (uint256 i = 0; i < pools.length; i++) {
+            address pool = pools[i];
+            uint256 voteWeight = weights[i];
+
+            uint256 kspVoteWeight = ((vKspBalance * voteWeight) /
+                weightsTotal) / 1e18;
+            _addVoting(pool, kspVoteWeight);
+        }
+    }
+
+    function removeVoting(address exchange, uint256 amount) external {
+        poolVoting.removeVoting(exchange, amount);
+    }
+
+    function claimReward(address exchange) external {
+        poolVoting.claimReward(exchange);
+    }
 
     function userVotingPoolAmount(address user, uint256 poolIndex)
         external
         view
         returns (uint256)
-    {}
+    {
+        return poolVoting.userVotingPoolAmount(user, poolIndex);
+    }
 
     function userVotingPoolAddress(address user, uint256 poolIndex)
         external
         view
         returns (address)
-    {}
+    {
+        return poolVoting.userVotingPoolAddress(user, poolIndex);
+    }
 
-    function userVotingPoolCount(address user)
-        external
-        view
-        returns (uint256)
-    {}
+    function userVotingPoolCount(address user) external view returns (uint256) {
+        return poolVoting.userVotingPoolCount(user);
+    }
 
-    function claimRewardAll() external {}
+    function claimRewardAll() external {
+        poolVoting.claimRewardAll();
+        //Transfer Fee to Fee distributor.
+    }
 
-    function removeAllVoting() external {}
+    function removeAllVoting() external {
+        poolVoting.removeAllVoting();
+        //Transfer Fee to Fee distributor.
+    }
 }

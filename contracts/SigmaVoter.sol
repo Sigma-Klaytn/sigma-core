@@ -433,7 +433,11 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         external
         view
         override
-        returns (address[] memory pools, uint256[] memory weights)
+        returns (
+            uint256 vxSIGTotalSupply,
+            address[] memory pools,
+            uint256[] memory weights
+        )
     {
         uint256 length = TOP_YIELD_POOL_COUNT;
         length += topVotesLength;
@@ -490,7 +494,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
             weights[length + i] = eachDisributedVxSIG;
         }
 
-        return (pools, weights);
+        return (vxSIGTotalSupply, pools, weights);
     }
 
     /**

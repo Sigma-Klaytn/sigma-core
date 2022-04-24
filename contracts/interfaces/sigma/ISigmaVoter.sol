@@ -5,5 +5,9 @@ interface ISigmaVoter {
     function getCurrentVotes()
         external
         view
-        returns (address[] memory pools, uint256[] memory weights);
+        returns (
+            uint256 weightsTotal,
+            address[] memory pools,
+            uint256[] memory weights
+        );
 }
