@@ -128,7 +128,7 @@ contract KlayswapEscrow is IERC20, Ownable {
     function depositKSP(uint256 _amount) external returns (bool) {
         kspToken.transferFrom(msg.sender, address(this), _amount * 1 ether);
         votingKSP.lockKSP(_amount, MAX_LOCK_PERIOD);
-        _mint(msg.sender, _amount * 8 ether);
+        _mint(msg.sender, _amount * 1 ether);
 
         emit DepositKSP(msg.sender, _amount * 1 ether);
 
