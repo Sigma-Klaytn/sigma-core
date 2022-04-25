@@ -198,7 +198,15 @@ contract KlayswapEscrow is IERC20, Ownable {
         return poolVoting.userVotingPoolCount(user);
     }
 
-    function claimRewardAll() external {
+    /**
+        @notice It gets KSP from VotingKSP.sol.
+     */
+    function claimVotingKSPReward() external {
+        votingKSP.claimReward();
+        //Transfer Fee to Fee distributor.
+    }
+
+    function claimPoolVotingRewardAll() external {
         poolVoting.claimRewardAll();
         //Transfer Fee to Fee distributor.
     }

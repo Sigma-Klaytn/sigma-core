@@ -3,11 +3,12 @@ pragma solidity ^0.8.9;
 
 import "./dependencies/Ownable.sol";
 import "./dependencies/SafeERC20.sol";
+import "./interfaces/sigma/ISigKSPStaking.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 
-contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
+contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -166,6 +167,7 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable {
 
     function updateRewardAmount()
         external
+        override
         onlyRewardsDistribution
         updateReward(address(0))
     {
