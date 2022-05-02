@@ -3,7 +3,6 @@ pragma solidity 0.8.9;
 
 import "./dependencies/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./libraries/Math.sol";
 import "./interfaces/sigma/IvxERC20.sol";
 
 // Farm distributes the sig rewards based on staked LP to each user.
@@ -64,19 +63,8 @@ contract LpFarm is Ownable {
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event Claim(address indexed user, uint256 indexed pid, uint256 amount);
-
-    constructor(
-        IERC20 _sig,
-        IvxERC20 _vxSIG,
-        uint256 _rewardPerBlock,
-        uint256 _startBlock
-    ) public {
-        sig = _sig;
-        rewardPerBlock = _rewardPerBlock;
-        startBlock = _startBlock;
-        endBlock = _startBlock;
-        vxSIG = _vxSIG;
-    }
+    event PoolAdded(address indexed lpToken, uint256 indexed pid);
+    event Funded(address indexed from, uint256 amount, uint256 newEndBlock);
 
     /* ========== External & Public Function  ========== */
 
@@ -152,6 +140,8 @@ contract LpFarm is Ownable {
             user.boostRewardDebt =
                 (user.boostWeight * pool.boostAccERC20PerShare) /
                 1e36;
+
+            updateBoostWeightToPool(_pid);
         }
 
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
@@ -165,6 +155,7 @@ contract LpFarm is Ownable {
     function claim(uint256 _pid) external {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
+        require(user.amount > 0, "User didn't deposit in this pool.");
         uint256 pendingAmount = basePending(_pid, msg.sender);
         if (user.boostWeight > 0) {
             pendingAmount += boostPending(_pid, msg.sender);
@@ -188,13 +179,17 @@ contract LpFarm is Ownable {
      */
     function updateBoostWeight() external {
         for (uint256 i = 0; i < poolInfo.length; i++) {
-            PoolInfo storage pool = poolInfo[i];
             UserInfo storage user = userInfo[i][msg.sender];
             //0. if user has amount
             if (user.amount > 0) {
                 _updateBoostWeight(msg.sender, i);
             }
         }
+    }
+
+    function updateBoostWeightToPool(uint256 _pid) public {
+        // user's amount can be zero
+        _updateBoostWeight(msg.sender, _pid);
     }
 
     /**
@@ -213,7 +208,40 @@ contract LpFarm is Ownable {
         }
     }
 
+    /**
+      @notice Fund the farm, anyone call fund sig token.
+      @param _amount amount of the token to fund.
+     */
+    function fund(uint256 _amount) public {
+        require(block.number < endBlock, "fund: too late, the farm is closed");
+        require(_amount > 0, "Funding amount should be bigger than 0");
+
+        sig.safeTransferFrom(address(msg.sender), address(this), _amount);
+        endBlock += _amount / rewardPerBlock;
+
+        emit Funded(msg.sender, _amount, endBlock);
+    }
+
     /* ========== Restricted Function  ========== */
+    /**
+     @notice sets initialInfo of the contract.
+     */
+    function setInitialInfo(
+        IERC20 _sig,
+        IvxERC20 _vxSIG,
+        uint256 _rewardPerBlock,
+        uint256 _startBlock
+    ) external onlyOwner {
+        require(
+            _startBlock > block.number,
+            "Start block should be in the future"
+        );
+        sig = _sig;
+        rewardPerBlock = _rewardPerBlock;
+        startBlock = _startBlock;
+        endBlock = _startBlock;
+        vxSIG = _vxSIG;
+    }
 
     /**
       @notice Add a new lp to the pool. Can only be called by the owner.
@@ -221,11 +249,11 @@ contract LpFarm is Ownable {
       @param _allocPoint base reward allocation of the pool
       @param _boostAllocPoint boost reward allocation of the pool
      */
-    function add(
+    function addPool(
         uint256 _allocPoint,
         uint256 _boostAllocPoint,
         IERC20 _lpToken
-    ) public onlyOwner returns (uint256 pid) {
+    ) public onlyOwner {
         massUpdatePools();
 
         uint256 lastRewardBlock = block.number > startBlock
@@ -247,7 +275,7 @@ contract LpFarm is Ownable {
             })
         );
 
-        return poolInfo.length - 1;
+        emit PoolAdded(address(_lpToken), poolInfo.length - 1);
     }
 
     /**
@@ -256,7 +284,7 @@ contract LpFarm is Ownable {
       @param _allocPoint base reward allocation of the pool
       @param _boostAllocPoint boost reward allocation of the pool
      */
-    function set(
+    function setPool(
         uint256 _pid,
         uint256 _allocPoint,
         uint256 _boostAllocPoint
@@ -278,14 +306,16 @@ contract LpFarm is Ownable {
     }
 
     /**
-      @notice Fund the farm, anyone call fund sig token.
-      @param _amount amount of the token to fund.
+     @notice set rewardPerBlock. It will change endblock as well.
      */
-    function fund(uint256 _amount) public {
-        require(block.number < endBlock, "fund: too late, the farm is closed");
-
-        sig.safeTransferFrom(address(msg.sender), address(this), _amount);
-        endBlock += _amount / rewardPerBlock;
+    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
+        require(
+            _rewardPerBlock > 0,
+            "reward per block should be bigger than 0"
+        );
+        rewardPerBlock = _rewardPerBlock;
+        uint256 sigBalance = sig.balanceOf(address(this));
+        endBlock = sigBalance / rewardPerBlock;
     }
 
     /* ========== Internal & Private Function  ========== */
@@ -304,7 +334,7 @@ contract LpFarm is Ownable {
         uint256 vxAmount = vxSIG.balanceOf(_addr);
         uint256 oldBoostWeight = user.boostWeight;
 
-        uint256 newBoostWeight = Math.sqrt(user.amount * vxAmount);
+        uint256 newBoostWeight = sqrt(user.amount * vxAmount);
         user.boostWeight = newBoostWeight;
         pool.totalBoostWeight =
             pool.totalBoostWeight -
@@ -380,6 +410,19 @@ contract LpFarm is Ownable {
             pool.boostAccERC20PerShare +
             ((erc20Reward * 1e36) / totalBoostWeight);
         pool.boostLastRewardBlock = block.number;
+    }
+
+    function sqrt(uint256 y) public pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
     }
 
     /* ========== View Function  ========== */

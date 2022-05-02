@@ -329,7 +329,6 @@ contract('xSIGFarm', function (accounts) {
         it('Test : _assertNotContract()')
         it('Test : connect to SigmaVoter')
 
-
     })
 });
 

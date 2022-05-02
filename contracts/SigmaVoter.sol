@@ -426,15 +426,13 @@ contract SigmaVoter is Ownable, ISigmaVoter {
 
     /**
         @notice getCurrentVotes for submit to Klayswap. It contains pre-setted TOP_YIELD_POOLS.
-        @return pools address of the votes.
-        @return weights address of the weights.
      */
     function getCurrentVotes()
         external
         view
         override
         returns (
-            uint256 vxSIGTotalSupply,
+            uint256 _vxSIGTotalSupply,
             address[] memory pools,
             uint256[] memory weights
         )

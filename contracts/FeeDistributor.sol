@@ -55,9 +55,9 @@ contract FeeDistributor is Ownable {
             uint256 received = IERC20(_token).balanceOf(address(this));
             IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
             received = IERC20(_token).balanceOf(address(this)) - received;
-            uint256 week = getWeek();
-            weeklyFeeAmounts[_token][week] += received;
-            emit FeesReceived(msg.sender, _token, week, _amount);
+            // uint256 week = getWeek();
+            // weeklyFeeAmounts[_token][week] += received;
+            // emit FeesReceived(msg.sender, _token, week, _amount);
         }
         return true;
     }
