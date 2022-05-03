@@ -12,7 +12,6 @@ contract TokenSale is Ownable {
 
     IERC20 public SIG;
     bool public tokensReleased;
-    uint256 public totalSIGSupply;
     uint256 public totalDeposit;
     address public receiver;
     mapping(address => DepositInfo) public depositOf;
@@ -93,6 +92,7 @@ contract TokenSale is Ownable {
 
             uint256 currentSlot = (phase2EndTs - block.timestamp) / HOUR;
             uint256 totalSlot = (phase2EndTs - phase2StartTs) / HOUR;
+
             uint256 withdrawablePortion = _getWithdrawablePortion(
                 currentSlot,
                 totalSlot
@@ -168,6 +168,7 @@ contract TokenSale is Ownable {
 
             uint256 currentSlot = (phase2EndTs - block.timestamp) / HOUR;
             uint256 totalSlot = (phase2EndTs - phase2StartTs) / HOUR;
+
             uint256 withdrawablePortion = _getWithdrawablePortion(
                 currentSlot,
                 totalSlot
@@ -272,7 +273,6 @@ contract TokenSale is Ownable {
         uint256 balanceOfKLAY = address(this).balance;
         require(balanceOfKLAY > 0, "There is no withdrawable amount of KLAY");
 
-        // KLAY.transfer(receiver, balanceOfKLAY);
         payable(receiver).transfer(balanceOfKLAY);
 
         emit AdminWithdraw(balanceOfKLAY);
