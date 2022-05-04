@@ -513,12 +513,12 @@ contract LpFarm is Ownable {
                 boostAccERC20PerShare +
                 (erc20Reward * 1e36) /
                 totalBoostWeight;
-
-            return
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36 -
-                user.boostRewardDebt;
         }
+
+        return
+            (user.boostWeight * boostAccERC20PerShare) /
+            1e36 -
+            user.boostRewardDebt;
     }
 
     /**
