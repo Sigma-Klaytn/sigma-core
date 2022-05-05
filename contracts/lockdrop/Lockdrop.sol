@@ -42,7 +42,7 @@ contract Lockdrop is Ownable {
     uint256 public immutable LOCK_6_MONTHS = 15768000;
     uint256 public immutable LOCK_10_MONTHS = 26280000;
 
-    mapping(uint256 => uint256) multiplierOf; // Multipler of each lock month
+    mapping(uint256 => uint256) public multiplierOf; // Multipler of each lock month
 
     event InitialInfoSet(
         uint256 phase1StartTs,
@@ -62,8 +62,10 @@ contract Lockdrop is Ownable {
 
     constructor() {}
 
+    /* ========== External & Public FUNCTIONS ========== */
+
     /**
-        @notice Deposit KUSDT into this contract, only allowed during Phase1.
+        @notice Deposit KSP into this contract, only allowed during Phase1.
      */
     function deposit(uint256 _amount, uint256 _lockMonth) external {
         require(block.timestamp > phase1StartTs, "Phase 1 did not start yet.");
@@ -77,7 +79,7 @@ contract Lockdrop is Ownable {
                 _lockMonth == LOCK_3_MONTHS ||
                 _lockMonth == LOCK_6_MONTHS ||
                 _lockMonth == LOCK_10_MONTHS,
-            "_lockMonth must be one of 1,3,6 or 10 months."
+            "Lock Month must be one of 1,3,6 or 10 months."
         );
         //Transfer KSP
         KSP.safeTransferFrom(msg.sender, address(this), _amount);
@@ -118,7 +120,7 @@ contract Lockdrop is Ownable {
                 _lockMonth == LOCK_3_MONTHS ||
                 _lockMonth == LOCK_6_MONTHS ||
                 _lockMonth == LOCK_10_MONTHS,
-            "_lockMonth must be one of 1,3,6 or 10 months."
+            "Lock Month must be one of 1,3,6 or 10 months."
         );
         DepositInfo storage userDeposit = depositOf[msg.sender];
         require(
@@ -195,7 +197,7 @@ contract Lockdrop is Ownable {
     /**
         @notice Withdraw pro-rata allocated SIG tokens, in vested manner. 
     */
-    function withdrawSIGTokens() external {
+    function claimSIGTokens() external {
         require(
             block.timestamp > phase2EndTs,
             "You can't withdraw tokens before phase 2 ends."
@@ -254,6 +256,7 @@ contract Lockdrop is Ownable {
     }
 
     /* ========== VIEW FUNCTIONS ========== */
+
     function getWithdrawableKSPAmount() external view returns (uint256) {
         if (phase2EndTs < block.timestamp) {
             return 0;
@@ -294,9 +297,31 @@ contract Lockdrop is Ownable {
     }
 
     /**
-     @notice Get user's claimable Sig mount.
+     @notice Get user's total allocated Sig amount.
      */
-    function userClaiamableSIGAmount(address _addr)
+    function userTotalAllocatedSIGToken(address _addr)
+        external
+        view
+        returns (uint256)
+    {
+        DepositInfo storage userDeposit = depositOf[_addr];
+
+        if (userDeposit.amount == 0) {
+            return 0;
+        } else {
+            uint256 portion = _getWithdrawableTokenPortion(
+                userDeposit.weight,
+                totalWeight
+            );
+
+            return (portion * TOTAL_SIG_SUPPLY) / 1e18;
+        }
+    }
+
+    /**
+     @notice Get user's claimable Sig amount.
+     */
+    function userClaimableSIGAmount(address _addr)
         external
         view
         returns (uint256)
@@ -383,6 +408,7 @@ contract Lockdrop is Ownable {
         uint256 _phase2EndTs,
         address _SIG,
         address _KSP,
+        address _lpToken,
         address _receiver,
         uint256 _vestingPeriod
     ) external onlyOwner {
@@ -402,12 +428,14 @@ contract Lockdrop is Ownable {
             (_phase2EndTs - _phase2StartTs) > HOUR,
             "Phase2 should be longer than 1 hour."
         );
+        require(_vestingPeriod > 0, "Vesting period should be bigger than 0");
         require(_receiver != address(0), "Invalid receiver address");
         phase1StartTs = _phase1StartTs;
         phase2StartTs = _phase2StartTs;
         phase2EndTs = _phase2EndTs;
         SIG = IERC20(_SIG);
         KSP = IERC20(_KSP);
+        lpToken = IERC20(_lpToken);
         receiver = _receiver;
         vestingPeriod = _vestingPeriod;
 
@@ -426,17 +454,31 @@ contract Lockdrop is Ownable {
     }
 
     /**
-        @notice Withdraw the contract's KSUDT balance at the end of the launch.
+        @notice Withdraw the contract's KSP balance at the end of the launch.
      */
     function adminWithdraw() external onlyOwner {
         require(
             block.timestamp > phase2EndTs,
-            "Phase 2 should end to withdraw KUSDT Tokens."
+            "Phase 2 should end to withdraw KSP Tokens."
         );
-        uint256 balanceOfKUSDT = KSP.balanceOf(address(this));
-        require(balanceOfKUSDT > 0, "There is no withdrawable amount of KUSDT");
-        KSP.transfer(receiver, balanceOfKUSDT);
-        emit AdminWithdraw(balanceOfKUSDT);
+        uint256 balanceOfKSP = KSP.balanceOf(address(this));
+        require(balanceOfKSP > 0, "There is no withdrawable amount of KSP");
+        KSP.transfer(receiver, balanceOfKSP);
+        emit AdminWithdraw(balanceOfKSP);
+    }
+
+    /**
+        @notice Withdraw the contract's ERC20 Token from klayswap. 
+     */
+    function adminRewardTokenWithdraw(address _token) external onlyOwner {
+        require(
+            block.timestamp > phase2EndTs,
+            "Phase 2 should end to withdraw KSP Tokens."
+        );
+        uint256 balanceOfToken = IERC20(_token).balanceOf(address(this));
+        require(balanceOfToken > 0, "There is no withdrawable amount of KSP");
+        IERC20(_token).transfer(receiver, balanceOfToken);
+        emit AdminWithdraw(balanceOfToken);
     }
 
     /**
