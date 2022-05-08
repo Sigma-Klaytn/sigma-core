@@ -405,7 +405,6 @@ contract LpFarm is Ownable {
             rewardPerBlock *
             pool.boostAllocPoint) / (totalAllocPoint);
 
-        // get Total deposit weight = sqrt (total deposit lp * total vxSIG)
         pool.boostAccERC20PerShare =
             pool.boostAccERC20PerShare +
             ((erc20Reward * 1e36) / totalBoostWeight);
@@ -454,8 +453,8 @@ contract LpFarm is Ownable {
         view
         returns (uint256)
     {
-        PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][_user];
+        PoolInfo memory pool = poolInfo[_pid];
+        UserInfo memory user = userInfo[_pid][_user];
         if (user.amount == 0) {
             return 0;
         }
@@ -488,8 +487,8 @@ contract LpFarm is Ownable {
         view
         returns (uint256)
     {
-        PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][_user];
+        PoolInfo memory pool = poolInfo[_pid];
+        UserInfo memory user = userInfo[_pid][_user];
 
         if (user.boostWeight == 0) {
             return 0;
@@ -529,7 +528,7 @@ contract LpFarm is Ownable {
         view
         returns (uint256)
     {
-        UserInfo storage user = userInfo[_pid][_user];
+        UserInfo memory user = userInfo[_pid][_user];
         return user.amount;
     }
 }

@@ -1,240 +1,422 @@
-// //SPDX-License-Identifier: UNLICENSED
-// pragma solidity ^0.8.9;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.9;
 
-// import "@openzeppelin/contracts/access/Ownable.sol";
-// import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-// import "./interfaces/sigma/Whitelist.sol";
-// import "./interfaces/sigma/IxSIGFarm.sol";
-// import "./interfaces/sigma/IvxERC20.sol";
-// import "./libraries/DSMath.sol";
+import "./dependencies/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/sigma/IvxERC20.sol";
 
-// contract sigKSPFarm is Ownable {
-//     /* ========== STATE VARIABLES ========== */
+// Farm distributes the sig rewards based on staked LP to each user.
+//
+// Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
+// Modified by LTO Network to work for non-mintable sig.
+// Modified by Sigma to work for boosted rewards with vxSIG.
+contract SigKSPFarm is Ownable {
+    using SafeERC20 for IERC20;
 
-//     IERC20 public sigKSP;
-//     IvxERC20 public vxSIG;
-//     IERC20 public sig;
+    IvxERC20 public vxSIG;
 
-//     /// @notice the rate of vxSIG generated per second
-//     uint256 public generationRate;
-//     uint256 public basePoolRatio;
+    IERC20 sigKSP; // Address of sigKSP token contract.
+    uint256 lastRewardBlock; // Last block number that ERC20s distribution occurs.
+    uint256 accERC20PerShare; // Accumulated ERC20s per share, times 1e36.
+    uint256 boostLastRewardBlock; // Last block number that ERC20s distribution occurs.
+    uint256 boostAccERC20PerShare; // Accumulated ERC20s per share, times 1e36.
+    uint256 totalBoostWeight; // Total boost weight of the pool
 
-//     struct UserInfo {
-//         uint256 stakedSigKSP; // staked sigKSP of the user
-//     }
+    /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
+    // Info of each user.
+    struct UserInfo {
+        uint256 amount; // How many sigKSP tokens the user has provided.
+        uint256 rewardDebt; // Reward debt.
+        uint256 boostRewardDebt; // Boosted Reward debt
+        uint256 boostWeight;
+    }
 
-//     struct DepositInfo {
-//         uint256 unlockTime;
-//         uint256 stakedSigKSP;
-//         uint256 lastRelease;
-//     }
+    // Address of the sig Token contract.
+    IERC20 public sig;
+    // The total amount of SIG that's paid out as base reward.
+    uint256 public paidOut = 0;
+    // sig tokens rewarded per block.
+    uint256 public rewardPerBlock;
 
-//     uint256 constant DAY = 86400;
+    // Info of each user that stakes sigKSP tokens.
+    mapping(address => UserInfo) public userInfo;
 
-//     /// @notice UserInfo mapping
-//     mapping(address => UserInfo) public userInfoOf;
-//     mapping(address => DepositInfo[]) public depositInfoOf;
+    /// @notice Reward per block will be divided by totalAllocPoint
+    uint256 public totalAllocPoint = 0; // boostAllocPoint + baseAllocPoint
 
-//     /// @notice events describing staking, unstaking and claiming
-//     event Staked(
-//         address indexed user,
-//         uint256 indexed amount,
-//         uint256 indexed totalStakedAmount
-//     );
-//     event Unstaked(
-//         address indexed user,
-//         uint256 indexed amount,
-//         uint256 indexed totalStakedAmount
-//     );
-//     event Claimed(address indexed user, uint256 indexed amount);
+    uint256 public boostAllocPoint = 0;
+    uint256 public baseAllocPoint = 0;
 
-//     /* ========== External Function  ========== */
+    // The block number when farming starts.
+    uint256 public startBlock;
+    // The block number when farming ends.
+    uint256 public endBlock;
 
-//     /**
-//      @notice stake sigKSP
-//      @param _amount the amount of sigKSP to stake
-//      */
-//     function stake(uint256 _amount) external override {
-//         require(_amount > 0, "stake sigKSP amount should be bigger than 0");
+    event Deposit(address indexed user, uint256 amount);
+    event Withdraw(address indexed user, uint256 amount);
+    event Claim(address indexed user, uint256 amount);
+    event Funded(address indexed from, uint256 amount, uint256 newEndBlock);
 
-//         UserInfo storage userInfo = userInfoOf[msg.sender];
-//         if (userInfo.stakedSigKSP == 0) {
-//             userInfo.startTime = block.timestamp;
-//             userInfo.lastRelease = block.timestamp;
-//         }
+    /* ========== External & Public Function  ========== */
 
-//         sigKSP.transferFrom(msg.sender, address(this), _amount);
-//         userInfo.stakedSigKSP += _amount;
+    /**
+      @notice deposit sigKSP token in the pool
+      @param _amount amount of the sigKSP token to deposit
+     */
+    function deposit(uint256 _amount) public {
+        UserInfo storage user = userInfo[msg.sender];
+        updateReward();
+        if (user.amount > 0) {
+            uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
+                user.rewardDebt;
+            erc20Transfer(msg.sender, pendingAmount);
 
-//         emit Staked(msg.sender, _amount, userInfo.stakedSigKSP);
-//     }
+            //if user has boost,
+            if (user.boostWeight > 0) {
+                uint256 boostPendingaAmount = (user.boostWeight *
+                    boostAccERC20PerShare) /
+                    1e36 -
+                    user.boostRewardDebt;
+                erc20Transfer(msg.sender, boostPendingaAmount);
+            }
+        }
+        sigKSP.safeTransferFrom(address(msg.sender), address(this), _amount);
+        user.amount += _amount;
+        user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
+        if (user.boostWeight > 0) {
+            user.boostRewardDebt =
+                (user.boostWeight * boostAccERC20PerShare) /
+                1e36;
+        }
 
-//     /**
-//      @notice withdraws staked sigKSP
-//      @param _amount the amount of sigKSP to unstake
-//      */
-//     function unstake(uint256 _amount) external override {
-//         require(_amount > 0, "Unstake amount should be bigger than 0");
-//         UserInfo storage userInfo = userInfoOf[msg.sender];
-//         require(
-//             userInfo.stakedSigKSP >= _amount,
-//             "Insuffcient stakedSigKSP to unstake"
-//         );
+        emit Deposit(msg.sender, _amount);
+    }
 
-//         userInfo.stakedSigKSP -= _amount;
+    /**
+      @notice withdraw sigKSP token and gets pending token.
+      @param _amount amount of the sigKSP token to withdraw
+     */
+    function withdraw(uint256 _amount) public {
+        UserInfo storage user = userInfo[msg.sender];
+        require(
+            user.amount >= _amount,
+            "withdraw: can't withdraw more than deposit"
+        );
+        updateReward();
 
-//         if (userInfo.stakedSigKSP == 0) {
-//             userInfo.startTime = 0;
-//             userInfo.lastRelease = 0;
-//         } else {
-//             userInfo.startTime = block.timestamp;
-//             userInfo.lastRelease = block.timestamp;
-//         }
+        uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
+            user.rewardDebt;
+        erc20Transfer(msg.sender, pendingAmount);
 
-//         sigKSP.transfer(msg.sender, _amount);
+        //if user has boost,
+        if (user.boostWeight > 0) {
+            uint256 boostPendingaAmount = (user.boostWeight *
+                boostAccERC20PerShare) /
+                1e36 -
+                user.boostRewardDebt;
+            erc20Transfer(msg.sender, boostPendingaAmount);
+        }
 
-//         emit Unstaked(msg.sender, _amount, userInfo.stakedSigKSP);
-//     }
+        user.amount -= _amount;
+        user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
+        if (user.boostWeight > 0) {
+            user.boostRewardDebt =
+                (user.boostWeight * boostAccERC20PerShare) /
+                1e36;
 
-//     /**
-//      @notice claims accumulated vxSIG
-//      */
-//     function claim() external override {
-//         require(isUser(msg.sender), "User didn't stake any sigKSP.");
-//         _claim(msg.sender);
-//     }
+            _updateBoostWeight();
+        }
 
-//     /* ========== Restricted Function  ========== */
+        sigKSP.safeTransfer(address(msg.sender), _amount);
+        emit Withdraw(msg.sender, _amount);
+    }
 
-//     /**
-//      @notice sets initialInfo of the contract.
-//      */
-//     function setInitialInfo(
-//         address _sigKSP,
-//         address _vxSIG,
-//         address _SIG,
-//         uint256 _generationRate,
-//         uint256 _basePoolRatio
-//     ) external onlyOwner {
-//         sigKSP = IERC20(_sigKSP);
-//         vxSIG = IvxERC20(_vxSIG);
-//         sig = IERC20(_SIG);
+    /**
+      @notice claim pending rewards on the pool
+     */
+    function claim() external {
+        UserInfo storage user = userInfo[msg.sender];
+        require(user.amount > 0, "User didn't deposit in this pool.");
+        uint256 pendingAmount = basePending(msg.sender);
+        if (user.boostWeight > 0) {
+            pendingAmount += boostPending(msg.sender);
+        }
+        require(pendingAmount > 0, "claim: no rewards to claim");
+        updateReward();
+        erc20Transfer(msg.sender, pendingAmount);
 
-//         //Initial generation rate. 0.014 vxSIG per hour
-//         generationRate = _generationRate;
-//         basePoolRatio = _basePoolRatio;
-//     }
+        user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
+        if (user.boostWeight > 0) {
+            user.boostRewardDebt =
+                (user.boostWeight * boostAccERC20PerShare) /
+                1e36;
+        }
+        emit Claim(msg.sender, pendingAmount);
+    }
 
-//     /**
-//      @notice sets generation rate
-//      @param _generationRate the new generation rate. how much vxSIG going to be added per second.
-//      */
-//     function setGenerationRate(uint256 _generationRate) external onlyOwner {
-//         require(_generationRate != 0, "generation rate cannot be zero");
-//         require(
-//             _generationRate != generationRate,
-//             "new generation is same with old one"
-//         );
+    /**
+      @notice update boost weight of the user. 
+      @notice This will be called from xSIGFarm if user activate/deactivate boost.
+     */
+    function updateBoostWeight() external {
+        UserInfo memory user = userInfo[msg.sender];
+        //0. if user has amount
+        if (user.amount > 0) {
+            _updateBoostWeight(msg.sender);
+        }
+    }
 
-//         generationRate = _generationRate;
-//     }
+    function _updateBoostWeight() internal {
+        // user's amount can be zero
+        _updateBoostWeight(msg.sender);
+    }
 
-//     /**
-//      @notice sets basePoolRatio
-//      @param _basePoolRatio base pool ratio of the reward pool. it should be between 0 to 100
-//      */
-//     function setBasePoolRatio(uint256 _basePoolRatio) external onlyOwner {
-//         require(
-//             _basePoolRatio >= 0 && _basePoolRatio <= 100,
-//             "Base pool ratio should be between 0 to 100"
-//         );
-//         basePoolRatio = _basePoolRatio;
-//     }
+    /**
+      @notice update pool both with base,boost
+     */
+    function updateReward() public {
+        _updateBaseReward();
+        _updateBoostReward();
+    }
 
-//     /* ========== Internal & Private Function  ========== */
+    /**
+      @notice Fund the farm, anyone call fund sig token.
+      @param _amount amount of the token to fund.
+     */
+    function fund(uint256 _amount) public {
+        require(block.number < endBlock, "fund: too late, the farm is closed");
+        require(_amount > 0, "Funding amount should be bigger than 0");
 
-//     /**
-//         @notice private claim SIG function
-//         @param _address the address of the user to claim from
-//      */
-//     function _claim(address _address) private {
-//         uint256 amount = _claimable(_address);
+        sig.safeTransferFrom(address(msg.sender), address(this), _amount);
+        endBlock += _amount / rewardPerBlock;
 
-//         // update last release time
-//         userInfoOf[_address].lastRelease = block.timestamp;
+        emit Funded(msg.sender, _amount, endBlock);
+    }
 
-//         if (amount > 0) {
-//             emit Claimed(_address, amount);
-//             vxSIG.mint(_address, amount);
-//         }
-//     }
+    /* ========== Restricted Function  ========== */
+    /**
+     @notice sets initialInfo of the contract.
+     */
+    function setInitialInfo(
+        IERC20 _sig,
+        IERC20 _sigKSP,
+        IvxERC20 _vxSIG,
+        uint256 _rewardPerBlock,
+        uint256 _startBlock,
+        uint256 _boostAllocPoint,
+        uint256 _baseAllocPoint
+    ) external onlyOwner {
+        require(
+            _startBlock > block.number,
+            "Start block should be in the future"
+        );
+        sig = _sig;
+        vxSIG = _vxSIG;
+        sigKSP = _sigKSP;
+        rewardPerBlock = _rewardPerBlock;
+        startBlock = _startBlock;
+        endBlock = _startBlock;
+        lastRewardBlock = _startBlock;
+        boostLastRewardBlock = _startBlock;
 
-//     /**
-//      @notice private claim function
-//      @param _address the address of the user to claim from
-//      */
-//     function _claimable(address _address) private view returns (uint256) {
-//         UserInfo memory user = userInfoOf[_address];
+        baseAllocPoint = _baseAllocPoint;
+        boostAllocPoint = _boostAllocPoint;
+        totalAllocPoint = baseAllocPoint + boostAllocPoint;
+    }
 
-//         // get seconds elapsed since last claim
-//         uint256 secondsElapsed = block.timestamp - user.lastRelease;
+    /**
+     @notice set rewardPerBlock. It will change endblock as well.
+     */
+    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
+        require(
+            _rewardPerBlock > 0,
+            "reward per block should be bigger than 0"
+        );
+        rewardPerBlock = _rewardPerBlock;
+        uint256 sigBalance = sig.balanceOf(address(this));
+        endBlock = sigBalance / rewardPerBlock;
+    }
 
-//         // DSMath.wmul used to multiply wad numbers
-//         uint256 pending = DSMath.wmul(
-//             user.stakedSigKSP,
-//             secondsElapsed * generationRate
-//         );
-//         // get user's vxSIG balance
-//         uint256 userVxSIGBalance = vxSIG.balanceOf(_address);
+    /* ========== Internal & Private Function  ========== */
 
-//         // user vxSIG balance cannot go above user.amount * maxCap
-//         uint256 maxVxSIGCap = DSMath.wmul(user.stakedSigKSP, maxVxSIGPerXSIG);
+    /**
+      @notice update boost weight of all existing pool
+      @param _addr address of the user
+     */
+    function _updateBoostWeight(address _addr) internal {
+        UserInfo storage user = userInfo[msg.sender];
 
-//         // first, check that user hasn't reached the max limit yet
-//         if (userVxSIGBalance < maxVxSIGCap) {
-//             // then, check if pending amount will make user balance overpass maximum amount
-//             if ((userVxSIGBalance + pending) > maxVxSIGCap) {
-//                 return maxVxSIGCap - userVxSIGBalance;
-//             } else {
-//                 return pending;
-//             }
-//         }
-//         return 0;
-//     }
+        _updateBoostReward();
 
-//     /* ========== View Function  ========== */
+        uint256 vxAmount = vxSIG.balanceOf(_addr);
+        uint256 oldBoostWeight = user.boostWeight;
 
-//     /**
-//      @notice checks wether user _address has sigKSP staked
-//      @param _address the user address to check
-//      @return true if the user has sigKSP in stake, false otherwise
-//     */
-//     function isUser(address _address) public view override returns (bool) {
-//         return userInfoOf[_address].stakedSigKSP > 0;
-//     }
+        uint256 newBoostWeight = sqrt(user.amount * vxAmount);
+        user.boostWeight = newBoostWeight;
+        totalBoostWeight = totalBoostWeight - oldBoostWeight + newBoostWeight;
+    }
 
-//     /**
-//      @notice Calculate the amount of vxSIG that can be claimed by user
-//      @param _address the address to check
-//      @return amount of vxSIG that can be claimed by user
-//      */
+    /**
+      @notice send _amount amount of sig to _to & add up paidOut
+      @param _to receiver of the token
+      @param _amount amount of the sig token to send 
+     */
+    function erc20Transfer(address _to, uint256 _amount) internal {
+        sig.transfer(_to, _amount);
+        paidOut += _amount;
+    }
 
-//     function claimable(address _address) external view returns (uint256) {
-//         require(_address != address(0), "zero address");
-//         return _claimable(_address);
-//     }
+    /**
+      @notice update base reward variable of the pool
+     */
+    function _updateBaseReward() internal {
+        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
 
-//     /**
-//      @notice Check Staked sigKSP of the user
-//      @param _address the user address to check
-//      */
-//     function getstakedSigKSP(address _address)
-//         external
-//         view
-//         override
-//         returns (uint256)
-//     {
-//         require(_address != address(0), "zero address");
-//         return userInfoOf[_address].stakedSigKSP;
-//     }
-// }
+        if (lastBlock <= lastRewardBlock) {
+            return;
+        }
+        uint256 totalSigKSP = sigKSP.balanceOf(address(this));
+        if (totalSigKSP == 0) {
+            lastRewardBlock = lastBlock;
+            return;
+        }
+
+        uint256 nrOfBlocks = lastBlock - (lastRewardBlock);
+
+        uint256 erc20Reward = (nrOfBlocks *
+            (rewardPerBlock) *
+            (baseAllocPoint)) / (totalAllocPoint);
+
+        accERC20PerShare =
+            accERC20PerShare +
+            (erc20Reward * 1e36) /
+            totalSigKSP;
+        lastRewardBlock = block.number;
+    }
+
+    /**
+      @notice update boost reward variable of the pool
+     */
+    function _updateBoostReward() internal {
+        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
+
+        if (lastBlock <= boostLastRewardBlock) {
+            return;
+        }
+        uint256 _totalBoostWeight = totalBoostWeight;
+        if (_totalBoostWeight == 0) {
+            boostLastRewardBlock = lastBlock;
+            return;
+        }
+
+        uint256 nrOfBlocks = lastBlock - boostLastRewardBlock;
+
+        uint256 erc20Reward = (nrOfBlocks * rewardPerBlock * boostAllocPoint) /
+            totalAllocPoint;
+
+        boostAccERC20PerShare =
+            boostAccERC20PerShare +
+            ((erc20Reward * 1e36) / _totalBoostWeight);
+        boostLastRewardBlock = block.number;
+    }
+
+    function sqrt(uint256 y) public pure returns (uint256 z) {
+        if (y > 3) {
+            z = y;
+            uint256 x = y / 2 + 1;
+            while (x < z) {
+                z = x;
+                x = (y / x + x) / 2;
+            }
+        } else if (y != 0) {
+            z = 1;
+        }
+    }
+
+    /* ========== View Function  ========== */
+
+    /**
+     @notice total pending amount on protocol.
+     */
+    function totalPending() external view returns (uint256) {
+        if (block.number <= startBlock) {
+            return 0;
+        }
+
+        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
+        return (rewardPerBlock * (lastBlock - startBlock)) - paidOut;
+    }
+
+    /**
+     @notice pending amount with base reward.
+     */
+    function basePending(address _user) public view returns (uint256) {
+        UserInfo memory user = userInfo[_user];
+        if (user.amount == 0) {
+            return 0;
+        }
+        uint256 _accERC20PerShare = accERC20PerShare;
+        uint256 totalSigKSP = sigKSP.balanceOf(address(this));
+        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
+
+        if (
+            lastBlock > lastRewardBlock &&
+            block.number > lastRewardBlock &&
+            totalSigKSP != 0
+        ) {
+            uint256 nrOfBlocks = lastBlock - lastRewardBlock;
+            uint256 erc20Reward = (nrOfBlocks *
+                (rewardPerBlock) *
+                (baseAllocPoint)) / (totalAllocPoint);
+            _accERC20PerShare =
+                _accERC20PerShare +
+                ((erc20Reward * 1e36) / totalSigKSP);
+        }
+
+        return ((user.amount * _accERC20PerShare) / 1e36) - user.rewardDebt;
+    }
+
+    /**
+     @notice pending amount with boost reward.
+     */
+    function boostPending(address _user) public view returns (uint256) {
+        UserInfo memory user = userInfo[_user];
+
+        if (user.boostWeight == 0) {
+            return 0;
+        }
+        uint256 _boostAccERC20PerShare = boostAccERC20PerShare;
+        uint256 _totalBoostWeight = totalBoostWeight;
+        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
+
+        if (
+            lastBlock > boostLastRewardBlock &&
+            block.number > boostLastRewardBlock &&
+            _totalBoostWeight != 0
+        ) {
+            uint256 nrOfBlocks = lastBlock - boostLastRewardBlock;
+
+            uint256 erc20Reward = (nrOfBlocks *
+                rewardPerBlock *
+                boostAllocPoint) / (totalAllocPoint);
+
+            _boostAccERC20PerShare =
+                _boostAccERC20PerShare +
+                (erc20Reward * 1e36) /
+                _totalBoostWeight;
+        }
+
+        return
+            (user.boostWeight * _boostAccERC20PerShare) /
+            1e36 -
+            user.boostRewardDebt;
+    }
+
+    /**
+     @notice deposited amount of the lp.
+     */
+    function deposited(address _user) external view returns (uint256) {
+        UserInfo memory user = userInfo[_user];
+        return user.amount;
+    }
+}
