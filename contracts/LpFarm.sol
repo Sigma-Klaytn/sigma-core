@@ -123,16 +123,17 @@ contract LpFarm is Ownable {
 
         uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) / 1e36) -
             user.rewardDebt;
-        erc20Transfer(msg.sender, pendingAmount);
 
         //if user has boost,
         if (user.boostWeight > 0) {
-            uint256 boostPendingaAmount = (user.boostWeight *
+            uint256 boostPendingAmount = (user.boostWeight *
                 pool.boostAccERC20PerShare) /
                 1e36 -
                 user.boostRewardDebt;
-            erc20Transfer(msg.sender, boostPendingaAmount);
+            pendingAmount += boostPendingAmount;
         }
+
+        erc20Transfer(msg.sender, pendingAmount);
 
         user.amount -= _amount;
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
@@ -334,7 +335,7 @@ contract LpFarm is Ownable {
         uint256 vxAmount = vxSIG.balanceOf(_addr);
         uint256 oldBoostWeight = user.boostWeight;
 
-        uint256 newBoostWeight = sqrt(user.amount * vxAmount);
+        uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
         user.boostWeight = newBoostWeight;
         pool.totalBoostWeight =
             pool.totalBoostWeight -
@@ -411,7 +412,7 @@ contract LpFarm is Ownable {
         pool.boostLastRewardBlock = block.number;
     }
 
-    function sqrt(uint256 y) public pure returns (uint256 z) {
+    function _sqrt(uint256 y) internal pure returns (uint256 z) {
         if (y > 3) {
             z = y;
             uint256 x = y / 2 + 1;
