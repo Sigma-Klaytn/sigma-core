@@ -28,6 +28,7 @@ const vxSIGToken = artifacts.require('vxSIGToken');
 const xSIGFarm = artifacts.require('xSIGFarm');
 const LpFarm = artifacts.require('LPFarm');
 const Lockdrop = artifacts.require('Lockdrop');
+const SigKSPFarm = artifacts.require('SigKSPFarm');
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -94,6 +95,10 @@ async function makeLpFarm(opts = {}) {
 async function makeLockdrop(opts = {}) {
     return await Lockdrop.new();
 }
+
+async function makeSigKSPFarm(opts = {}) {
+    return await SigKSPFarm.new();
+}
 module.exports = {
     MockERC20,
     DepositingVault,
@@ -111,6 +116,7 @@ module.exports = {
     IPoolVoting,
     LpFarm,
     Lockdrop,
+    SigKSPFarm,
 
 
     makeErc20Token,
@@ -128,5 +134,6 @@ module.exports = {
     makeVxSIGToken,
     makeIPoolVoting,
     makeLpFarm,
-    makeLockdrop
+    makeLockdrop,
+    makeSigKSPFarm
 };

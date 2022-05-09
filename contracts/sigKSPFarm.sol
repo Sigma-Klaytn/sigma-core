@@ -15,12 +15,17 @@ contract SigKSPFarm is Ownable {
 
     IvxERC20 public vxSIG;
 
-    IERC20 sigKSP; // Address of sigKSP token contract.
-    uint256 lastRewardBlock; // Last block number that ERC20s distribution occurs.
-    uint256 accERC20PerShare; // Accumulated ERC20s per share, times 1e36.
-    uint256 boostLastRewardBlock; // Last block number that ERC20s distribution occurs.
-    uint256 boostAccERC20PerShare; // Accumulated ERC20s per share, times 1e36.
-    uint256 totalBoostWeight; // Total boost weight of the pool
+    IERC20 public sigKSP; // Address of sigKSP token contract.
+    uint256 public lastRewardBlock; // Last block number that ERC20s distribution occurs.
+    uint256 public accERC20PerShare; // Accumulated ERC20s per share, times 1e36.
+    uint256 public boostLastRewardBlock; // Last block number that ERC20s distribution occurs.
+    uint256 public boostAccERC20PerShare; // Accumulated ERC20s per share, times 1e36.
+    uint256 public totalBoostWeight; // Total boost weight of the pool
+
+    /// @notice Reward per block will be divided by totalAllocPoint
+    uint256 public totalAllocPoint = 0; // boostAllocPoint + baseAllocPoint
+    uint256 public baseAllocPoint = 0;
+    uint256 public boostAllocPoint = 0;
 
     /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
     // Info of each user.
@@ -40,12 +45,6 @@ contract SigKSPFarm is Ownable {
 
     // Info of each user that stakes sigKSP tokens.
     mapping(address => UserInfo) public userInfo;
-
-    /// @notice Reward per block will be divided by totalAllocPoint
-    uint256 public totalAllocPoint = 0; // boostAllocPoint + baseAllocPoint
-
-    uint256 public boostAllocPoint = 0;
-    uint256 public baseAllocPoint = 0;
 
     // The block number when farming starts.
     uint256 public startBlock;
@@ -106,7 +105,6 @@ contract SigKSPFarm is Ownable {
 
         uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
             user.rewardDebt;
-        erc20Transfer(msg.sender, pendingAmount);
 
         //if user has boost,
         if (user.boostWeight > 0) {
@@ -114,8 +112,10 @@ contract SigKSPFarm is Ownable {
                 boostAccERC20PerShare) /
                 1e36 -
                 user.boostRewardDebt;
-            erc20Transfer(msg.sender, boostPendingaAmount);
+            pendingAmount += boostPendingaAmount;
         }
+
+        erc20Transfer(msg.sender, pendingAmount);
 
         user.amount -= _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
@@ -203,8 +203,8 @@ contract SigKSPFarm is Ownable {
         IvxERC20 _vxSIG,
         uint256 _rewardPerBlock,
         uint256 _startBlock,
-        uint256 _boostAllocPoint,
-        uint256 _baseAllocPoint
+        uint256 _baseAllocPoint,
+        uint256 _boostAllocPoint
     ) external onlyOwner {
         require(
             _startBlock > block.number,
@@ -219,6 +219,19 @@ contract SigKSPFarm is Ownable {
         lastRewardBlock = _startBlock;
         boostLastRewardBlock = _startBlock;
 
+        baseAllocPoint = _baseAllocPoint;
+        boostAllocPoint = _boostAllocPoint;
+        totalAllocPoint = baseAllocPoint + boostAllocPoint;
+    }
+
+    /**
+     @notice sets baseAllocPoint and boostAllocPoint of the contract.
+     */
+    function setBaseAndBoostAllocPoint(
+        uint256 _baseAllocPoint,
+        uint256 _boostAllocPoint
+    ) external onlyOwner {
+        updateReward();
         baseAllocPoint = _baseAllocPoint;
         boostAllocPoint = _boostAllocPoint;
         totalAllocPoint = baseAllocPoint + boostAllocPoint;
@@ -251,7 +264,7 @@ contract SigKSPFarm is Ownable {
         uint256 vxAmount = vxSIG.balanceOf(_addr);
         uint256 oldBoostWeight = user.boostWeight;
 
-        uint256 newBoostWeight = sqrt(user.amount * vxAmount);
+        uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
         user.boostWeight = newBoostWeight;
         totalBoostWeight = totalBoostWeight - oldBoostWeight + newBoostWeight;
     }
@@ -320,7 +333,7 @@ contract SigKSPFarm is Ownable {
         boostLastRewardBlock = block.number;
     }
 
-    function sqrt(uint256 y) public pure returns (uint256 z) {
+    function _sqrt(uint256 y) internal pure returns (uint256 z) {
         if (y > 3) {
             z = y;
             uint256 x = y / 2 + 1;
