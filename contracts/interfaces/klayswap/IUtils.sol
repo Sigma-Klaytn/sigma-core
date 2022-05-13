@@ -16,4 +16,11 @@ interface IUtils {
             address[] memory airdropTokens,
             uint256[] memory airdropSettings
         );
+
+    function estimateSwap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        address[] memory path
+    ) external view returns (uint256 amountOut);
 }

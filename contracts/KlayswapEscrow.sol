@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/klayswap/IVotingKSP.sol";
 import "./interfaces/klayswap/IPoolVoting.sol";
 import "./interfaces/sigma/ISigmaVoter.sol";
+import "./interfaces/klayswap/IFactory.sol";
 
 contract KlayswapEscrow is IERC20, Ownable {
     string public constant name = "sigKSP: Tokenized vKSP";
@@ -17,11 +18,14 @@ contract KlayswapEscrow is IERC20, Ownable {
     mapping(address => mapping(address => uint256)) public override allowance;
 
     //KSP contracts
-    IERC20 public immutable kspToken;
-    IVotingKSP public immutable votingKSP;
-    IPoolVoting public immutable poolVoting;
+    IERC20 public kspToken;
+    IERC20 public kusdtToken;
 
-    ISigmaVoter public immutable sigmaVoter;
+    IVotingKSP public votingKSP;
+    IPoolVoting public poolVoting;
+    IFactory public factory;
+
+    ISigmaVoter public sigmaVoter;
 
     uint256 public constant MAX_LOCK_PERIOD = 1555200000;
 
@@ -48,24 +52,24 @@ contract KlayswapEscrow is IERC20, Ownable {
     //     operators[_operator] = false;
     // }
 
-    constructor(
+    constructor() {}
+
+    function setInitialInfo(
         IERC20 _kspToken,
+        IERC20 _kusdtToken,
         IVotingKSP _votingKSP,
         IPoolVoting _poolVoting,
-        ISigmaVoter _sigmaVoter
-    ) {
+        ISigmaVoter _sigmaVoter,
+        IFactory _factory
+    ) external onlyOwner {
         kspToken = _kspToken;
+        kusdtToken = _kusdtToken;
         votingKSP = _votingKSP;
         poolVoting = _poolVoting;
         sigmaVoter = _sigmaVoter;
+        factory = _factory;
 
-        //approve VotingKSP to transfer KSP
         _kspToken.approve(address(_votingKSP), type(uint256).max);
-    }
-
-    function setAddresses() external onlyOwner {
-        //do something
-        renounceOwnership();
     }
 
     // [start of] token
@@ -214,5 +218,61 @@ contract KlayswapEscrow is IERC20, Ownable {
     function removeAllVoting() external {
         poolVoting.removeAllVoting();
         //Transfer Fee to Fee distributor.
+    }
+
+    // IFactory
+
+    function exchangeKlayPos(
+        address token,
+        uint256 amount,
+        address[] memory path
+    ) external payable {
+        factory.exchangeKlayPos(token, amount, path);
+    }
+
+    function exchangeKlayNeg(
+        address token,
+        uint256 amount,
+        address[] memory path
+    ) external payable {
+        factory.exchangeKlayNeg(token, amount, path);
+    }
+
+    function exchangeKctNeg(
+        address tokenA,
+        uint256 amountA,
+        address tokenB,
+        uint256 amountB,
+        address[] memory path
+    ) external {
+        factory.exchangeKctNeg(tokenA, amountA, tokenB, amountB, path);
+    }
+
+    function exchangeKctPos(
+        address tokenA,
+        uint256 amountA,
+        address tokenB,
+        uint256 amountB,
+        address[] memory path
+    ) external {
+        factory.exchangeKctPos(tokenA, amountA, tokenB, amountB, path);
+    }
+
+    //JUST FOR THE TEST
+    function sendKUSDTToSomewhere(address _receiver) external {
+        uint256 balance = kusdtToken.balanceOf(address(this));
+        kusdtToken.transfer(_receiver, balance);
+    }
+
+    function approveTokenToSomeone(address _token, address _to) external {
+        IERC20(_token).approve(address(_to), type(uint256).max);
+    }
+
+    function transferTokenToSomeone(
+        address _token,
+        address _to,
+        uint256 _amount
+    ) external {
+        IERC20(_token).transfer(address(_to), _amount);
     }
 }
