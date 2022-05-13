@@ -3,8 +3,6 @@ pragma solidity ^0.8.9;
 
 import "./dependencies/Ownable.sol";
 import "./interfaces/sigma/IvxERC20.sol";
-import "./interfaces/klayswap/IPoolVoting.sol";
-import "./interfaces/klayswap/IVotingKSP.sol";
 import "./interfaces/sigma/ISigmaVoter.sol";
 
 contract SigmaVoter is Ownable, ISigmaVoter {
