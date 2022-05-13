@@ -273,16 +273,22 @@ contract SigmaVoter is Ownable, ISigmaVoter {
 
     /* ========== Restricted Function  ========== */
 
-    function setInitialInfo(address[] calldata _pools, IvxERC20 _vxSIG)
-        external
-        onlyOwner
-    {
+    function setInitialInfo(
+        address[] calldata _lpPools,
+        address[] calldata _topYieldPools,
+        IvxERC20 _vxSIG
+    ) external onlyOwner {
         require(
-            _pools.length == TOP_YIELD_POOL_COUNT,
+            _topYieldPools.length == TOP_YIELD_POOL_COUNT,
             "pool length doesn't match with TOP_YIELD_POOL_COUNT"
         );
         vxSIG = _vxSIG;
-        topYieldPools = _pools;
+        topYieldPools = _topYieldPools;
+
+        // Add pools
+        for (uint256 i = 0; i < _lpPools.length; i++) {
+            addPool(_lpPools[i]);
+        }
     }
 
     /**
@@ -297,6 +303,23 @@ contract SigmaVoter is Ownable, ISigmaVoter {
      */
     function setUserMaxVotePool(uint256 _value) external onlyOwner {
         USER_MAX_VOTE_POOL = _value;
+    }
+
+    /**
+        @notice add pool and initiate.
+     */
+    function addPool(address _pool) public onlyOwner returns (uint256) {
+        require(!isPool(_pool), "This pool already has been added.");
+
+        poolInfos[_pool] = PoolInfo({
+            vxSIGAmount: 0,
+            isInitiated: true,
+            listPointer: poolAddresses.length,
+            topVotesIndex: 0
+        });
+        poolAddresses.push(_pool);
+        uint256 length = poolAddresses.length - 1;
+        return length;
     }
 
     /* ========== Internal & Private Function  ========== */
@@ -330,9 +353,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         @param _vxSIGAmount vxSIG Amount in ETH not wei. 
      */
     function _updatePoolVote(address _pool, uint256 _vxSIGAmount) internal {
-        if (!isPool(_pool)) {
-            addPool(_pool);
-        }
+        require(isPool(_pool), "This pool is not registred by the admin");
         require(
             availableVotes(msg.sender) >= _vxSIGAmount,
             "insufficient vxSIG to vote"
@@ -382,23 +403,6 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         id = (value >> 40);
         vxSIGAmount = uint256(value % 2**40);
         return (id, vxSIGAmount);
-    }
-
-    /**
-        @notice add pool and initiate.
-     */
-    function addPool(address _pool) internal returns (uint256) {
-        require(!isPool(_pool), "This pool already has been added.");
-
-        poolInfos[_pool] = PoolInfo({
-            vxSIGAmount: 0,
-            isInitiated: true,
-            listPointer: poolAddresses.length,
-            topVotesIndex: 0
-        });
-        poolAddresses.push(_pool);
-        uint256 length = poolAddresses.length - 1;
-        return length;
     }
 
     /* ========== View Function  ========== */
