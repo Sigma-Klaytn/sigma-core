@@ -17,7 +17,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
 
     /// @notice save more vote pool for buffer. This is for when user withdraw votes from the pool.
     uint256 public constant MAX_VOTES_WITH_BUFFER =
-        TOP_VOTES_POOL_COUNT + 10 + 1;
+        TOP_VOTES_POOL_COUNT + 5 + 1;
 
     uint256 public USER_MAX_VOTE_POOL = 10;
 
@@ -58,6 +58,15 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         uint256 poolVoteIndex;
         bool isVoted;
     }
+
+    event PoolAdded(address indexed poolAddress, uint256 totalPoolLength);
+    event VoteWithdrawn(
+        address indexed user,
+        address indexed poolAddress,
+        uint256 withdrawnAmount,
+        uint256 newPoolVxSIGAmount
+    );
+    event AllVoteWithdrawn(address indexed user);
 
     constructor() {
         // poolAddress[0] is always empty. So if (poolInfo[x].listPointer == 0) means no pool set yet.
@@ -163,10 +172,10 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         @param _vxSIGAmount vxSIG Amount to withdraw in ETH not wei. 
      */
     function deletePoolVote(address _pool, uint256 _vxSIGAmount) public {
-        require(isPool(_pool), "Invalid pool. This pool never been voted.");
+        require(isPool(_pool), "This pool is not registred by the admin.");
         require(
             userPoolInfos[msg.sender][_pool].isVoted,
-            "User never voted to this pool"
+            "User never voted to this pool."
         );
 
         totalUsedVxSIG -= _vxSIGAmount;
@@ -243,7 +252,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
             userPoolInfos[msg.sender][_pool].poolVoteIndex = 0;
 
             PoolVote[] storage poolVotes = userPoolVotes[msg.sender];
-            if (poolVotes.length != 1) {
+            if (poolVotes.length != 2) {
                 PoolVote memory poolVoteToMove = poolVotes[
                     poolVotes.length - 1
                 ];
@@ -255,6 +264,8 @@ contract SigmaVoter is Ownable, ISigmaVoter {
                 delete userPoolVotes[msg.sender];
             }
         }
+
+        emit VoteWithdrawn(msg.sender, _pool, _vxSIGAmount, newPoolVxSIGAmount);
     }
 
     /**
@@ -264,9 +275,11 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         PoolVote[] memory userVotes = userPoolVotes[msg.sender];
         require(userVotes.length > 0, "User didn't vote yet");
 
-        for (uint256 i = 0; i < userVotes.length; i++) {
+        for (uint256 i = 1; i < userVotes.length; i++) {
             deletePoolVote(userVotes[i].pool, userVotes[i].vxSIGAmount);
         }
+
+        emit AllVoteWithdrawn(msg.sender);
     }
 
     /* ========== Restricted Function  ========== */
@@ -278,7 +291,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
     ) external onlyOwner {
         require(
             _topYieldPools.length == TOP_YIELD_POOL_COUNT,
-            "pool length doesn't match with TOP_YIELD_POOL_COUNT"
+            "Top yield pool length doesn't match with TOP_YIELD_POOL_COUNT"
         );
         vxSIG = _vxSIG;
         topYieldPools = _topYieldPools;
@@ -306,7 +319,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
     /**
         @notice add pool and initiate.
      */
-    function addPool(address _pool) public onlyOwner returns (uint256) {
+    function addPool(address _pool) public onlyOwner {
         require(!isPool(_pool), "This pool already has been added.");
 
         poolInfos[_pool] = PoolInfo({
@@ -317,7 +330,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         });
         poolAddresses.push(_pool);
         uint256 length = poolAddresses.length - 1;
-        return length;
+        emit PoolAdded(_pool, length);
     }
 
     /* ========== Internal & Private Function  ========== */
@@ -325,7 +338,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
     function _updatePoolVxSIGAmount(address _pool, uint256 newVxSIGAmount)
         internal
     {
-        require(isPool(_pool), "It is not registered pool");
+        require(isPool(_pool), "This pool is not registred by the admin.");
         poolInfos[_pool].vxSIGAmount = newVxSIGAmount;
     }
 
@@ -351,7 +364,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
         @param _vxSIGAmount vxSIG Amount in ETH not wei. 
      */
     function _updatePoolVote(address _pool, uint256 _vxSIGAmount) internal {
-        require(isPool(_pool), "This pool is not registred by the admin");
+        require(isPool(_pool), "This pool is not registred by the admin.");
         require(
             availableVotes(msg.sender) >= _vxSIGAmount,
             "insufficient vxSIG to vote"
@@ -363,13 +376,18 @@ contract SigmaVoter is Ownable, ISigmaVoter {
 
         PoolVote[] storage userVotes = userPoolVotes[msg.sender];
 
+        //if userVotes.length ==0 add empty userPoolInfo.
+        if (userVotes.length == 0) {
+            userVotes.push(PoolVote({pool: address(0), vxSIGAmount: 0}));
+        }
+
         if (userPoolInfos[msg.sender][_pool].isVoted) {
             // If already voted to this pool
             userVotes[userPoolInfos[msg.sender][_pool].poolVoteIndex]
                 .vxSIGAmount += _vxSIGAmount;
         } else {
             require(
-                userVotes.length < USER_MAX_VOTE_POOL,
+                userVotes.length < USER_MAX_VOTE_POOL + 1,
                 "User exceeded max vote pool count."
             );
             // If never been voted to this pool
@@ -525,7 +543,16 @@ contract SigmaVoter is Ownable, ISigmaVoter {
     /**
         @notice get user total pool vote count.
      */
-    function getUserVotesCount() external view returns (uint256) {
-        return userPoolVotes[msg.sender].length;
+    function getUserVotesCount(address _user)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        if (userPoolVotes[_user].length == 0) {
+            return 0;
+        } else {
+            return userPoolVotes[_user].length - 1;
+        }
     }
 }

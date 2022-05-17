@@ -10,4 +10,6 @@ interface ISigmaVoter {
             address[] memory pools,
             uint256[] memory weights
         );
+
+    function getUserVotesCount(address _user) external view returns (uint256);
 }
