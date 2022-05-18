@@ -4,8 +4,9 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/sigma/IxSIGToken.sol";
+import "./interfaces/sigma/ISigFarm.sol";
 
-contract SIGFarm is Ownable {
+contract SIGFarm is Ownable, ISigFarm {
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public SIG;
@@ -111,7 +112,7 @@ contract SIGFarm is Ownable {
         @dev Caller must have given approval for this contract to transfer SIG
         @param _amount Amount of the token to deposit
      */
-    function depositFee(uint256 _amount) external {
+    function depositFee(uint256 _amount) external override {
         require(_amount > 0, "Deposit amount should be bigger than 0");
         SIG.transferFrom(msg.sender, address(this), _amount);
         emit FeesReceived(msg.sender, _amount);

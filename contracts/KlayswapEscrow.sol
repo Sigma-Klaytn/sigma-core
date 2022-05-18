@@ -7,6 +7,8 @@ import "./interfaces/klayswap/IVotingKSP.sol";
 import "./interfaces/klayswap/IPoolVoting.sol";
 import "./interfaces/sigma/ISigmaVoter.sol";
 import "./interfaces/klayswap/IFactory.sol";
+import "./interfaces/sigma/ISigKSPStaking.sol";
+import "./interfaces/sigma/IFeeDistributor.sol";
 
 contract KlayswapEscrow is IERC20, Ownable {
     string public constant name = "sigKSP: Tokenized vKSP";
@@ -26,33 +28,32 @@ contract KlayswapEscrow is IERC20, Ownable {
     IFactory public factory;
 
     ISigmaVoter public sigmaVoter;
+    ISigKSPStaking public sigKSPStaking;
+    IFeeDistributor public feeDistributor;
 
     uint256 public constant MAX_LOCK_PERIOD = 1555200000;
 
-    // mapping(address => bool) public operators;
+    mapping(address => bool) public operators;
 
     event DepositKSP(address depositer, uint256 amount);
+    event ForwardedFee(uint256 kspAmount, uint256 kusdtAmount);
 
-    // /**
-    //  @notice Approve contracts to mint and renounce ownership
-    // @dev In production the only minters should be `SIGFarm`
-    //          Addresses are given via dynamic array to allow extra minters during testing
-    //  */
-    // function setOperator(address[] calldata _operators) external onlyOwner {
-    //     for (uint256 i = 0; i < _operators.length; i++) {
-    //         operators[_operators[i]] = true;
-    //     }
-    // }
+    /**
+     @notice Approve contracts to mint and renounce ownership
+     */
+    function setOperator(address[] calldata _operators) external onlyOwner {
+        for (uint256 i = 0; i < _operators.length; i++) {
+            operators[_operators[i]] = true;
+        }
+    }
 
-    // /**
-    //  @notice Revoke authority to mint and burn the given token.
-    //  */
-    // function revokeOperator(address _operator) external onlyOwner {
-    //     require(operators[_operator], "This address is not an operator");
-    //     operators[_operator] = false;
-    // }
-
-    constructor() {}
+    /**
+     @notice Revoke authority to mint and burn the given token.
+     */
+    function revokeOperator(address _operator) external onlyOwner {
+        require(operators[_operator], "This address is not an operator");
+        operators[_operator] = false;
+    }
 
     function setInitialInfo(
         IERC20 _kspToken,
@@ -60,16 +61,22 @@ contract KlayswapEscrow is IERC20, Ownable {
         IVotingKSP _votingKSP,
         IPoolVoting _poolVoting,
         ISigmaVoter _sigmaVoter,
-        IFactory _factory
+        ISigKSPStaking _sigKSPStaking,
+        IFactory _factory,
+        IFeeDistributor _feeDistributor
     ) external onlyOwner {
         kspToken = _kspToken;
         kusdtToken = _kusdtToken;
         votingKSP = _votingKSP;
         poolVoting = _poolVoting;
         sigmaVoter = _sigmaVoter;
+        sigKSPStaking = _sigKSPStaking;
         factory = _factory;
+        feeDistributor = _feeDistributor;
 
-        _kspToken.approve(address(_votingKSP), type(uint256).max);
+        kspToken.approve(address(votingKSP), type(uint256).max);
+        kusdtToken.approve(address(feeDistributor), type(uint256).max);
+        kspToken.approve(address(feeDistributor), type(uint256).max);
     }
 
     // [start of] token
@@ -110,7 +117,6 @@ contract KlayswapEscrow is IERC20, Ownable {
     ) external override returns (bool) {
         require(allowance[_from][msg.sender] >= _value, "Insufficient balance");
         if (allowance[_from][msg.sender] != type(uint256).max) {
-            //TODO: for what?
             allowance[_from][msg.sender] -= _value;
         }
         _transfer(_from, _to, _value);
@@ -124,6 +130,8 @@ contract KlayswapEscrow is IERC20, Ownable {
     }
 
     //[end] of token
+
+    /* ========== Public | External Function  ========== */
 
     /**
         @notice Deposit KSP and get sigKSP in return. sigKSP is Tokenized vKSP.
@@ -139,7 +147,33 @@ contract KlayswapEscrow is IERC20, Ownable {
         return true;
     }
 
-    //TODO
+    function forwardFeeToFeeDistributor() external onlyOperator {
+        uint256 kspTokenBalance = kspToken.balanceOf(address(this));
+        uint256 kusdtTokenBalance = kusdtToken.balanceOf(address(this));
+
+        if (kspTokenBalance > 0) {
+            feeDistributor.depositERC20(address(kspToken), kspTokenBalance);
+        }
+
+        if (kusdtTokenBalance > 0) {
+            feeDistributor.depositERC20(address(kusdtToken), kusdtTokenBalance);
+        }
+
+        emit ForwardedFee(kspTokenBalance, kusdtTokenBalance);
+    }
+
+    /* ========== Restricted Function  ========== */
+
+    // IVotingKSP
+
+    /**
+        @notice It gets KSP from VotingKSP.sol.
+     */
+    function claimVotingKSPReward() external onlyOperator {
+        votingKSP.claimReward();
+    }
+
+    // IPoolVoting
 
     /**
         @notice Submit vote to klayswap.
@@ -150,7 +184,10 @@ contract KlayswapEscrow is IERC20, Ownable {
         poolVoting.addVoting(exchange, amount);
     }
 
-    function addAllVotings() external {
+    /**
+        @notice Submit votes to klayswap. This will be called regulary by sigma-bot.
+     */
+    function addAllVotings() external onlyOperator {
         (
             uint256 weightsTotal,
             address[] memory pools,
@@ -174,12 +211,26 @@ contract KlayswapEscrow is IERC20, Ownable {
         }
     }
 
-    function removeVoting(address exchange, uint256 amount) external {
+    function removeVoting(address exchange, uint256 amount)
+        external
+        onlyOperator
+    {
         poolVoting.removeVoting(exchange, amount);
     }
 
-    function claimReward(address exchange) external {
+    function claimPoolVotingReward(address exchange) external onlyOperator {
         poolVoting.claimReward(exchange);
+    }
+
+    /**
+        @notice Method of all vote pool’s transaction fee reward 
+     */
+    function claimPoolVotingRewardAll() external onlyOperator {
+        poolVoting.claimRewardAll();
+    }
+
+    function removeAllVoting() external onlyOperator {
+        poolVoting.removeAllVoting();
     }
 
     function userVotingPoolAmount(address user, uint256 poolIndex)
@@ -202,31 +253,12 @@ contract KlayswapEscrow is IERC20, Ownable {
         return poolVoting.userVotingPoolCount(user);
     }
 
-    /**
-        @notice It gets KSP from VotingKSP.sol.
-     */
-    function claimVotingKSPReward() external {
-        votingKSP.claimReward();
-        //Transfer Fee to Fee distributor.
-    }
-
-    function claimPoolVotingRewardAll() external {
-        poolVoting.claimRewardAll();
-        //Transfer Fee to Fee distributor.
-    }
-
-    function removeAllVoting() external {
-        poolVoting.removeAllVoting();
-        //Transfer Fee to Fee distributor.
-    }
-
     // IFactory
-
     function exchangeKlayPos(
         address token,
         uint256 amount,
         address[] memory path
-    ) external payable {
+    ) external payable onlyOperator {
         factory.exchangeKlayPos(token, amount, path);
     }
 
@@ -234,7 +266,7 @@ contract KlayswapEscrow is IERC20, Ownable {
         address token,
         uint256 amount,
         address[] memory path
-    ) external payable {
+    ) external payable onlyOperator {
         factory.exchangeKlayNeg(token, amount, path);
     }
 
@@ -244,7 +276,7 @@ contract KlayswapEscrow is IERC20, Ownable {
         address tokenB,
         uint256 amountB,
         address[] memory path
-    ) external {
+    ) external onlyOperator {
         factory.exchangeKctNeg(tokenA, amountA, tokenB, amountB, path);
     }
 
@@ -254,25 +286,17 @@ contract KlayswapEscrow is IERC20, Ownable {
         address tokenB,
         uint256 amountB,
         address[] memory path
-    ) external {
+    ) external onlyOperator {
         factory.exchangeKctPos(tokenA, amountA, tokenB, amountB, path);
     }
 
-    //JUST FOR THE TEST
-    function sendKUSDTToSomewhere(address _receiver) external {
-        uint256 balance = kusdtToken.balanceOf(address(this));
-        kusdtToken.transfer(_receiver, balance);
-    }
-
-    function approveTokenToSomeone(address _token, address _to) external {
+    function approveToken(address _token, address _to) external onlyOperator {
         IERC20(_token).approve(address(_to), type(uint256).max);
     }
 
-    function transferTokenToSomeone(
-        address _token,
-        address _to,
-        uint256 _amount
-    ) external {
-        IERC20(_token).transfer(address(_to), _amount);
+    //Modifier
+    modifier onlyOperator() {
+        require(operators[msg.sender], "This address is not an operator");
+        _;
     }
 }

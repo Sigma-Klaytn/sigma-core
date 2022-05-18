@@ -3,9 +3,12 @@ pragma solidity 0.8.9;
 
 import "./dependencies/Ownable.sol";
 import "./dependencies/SafeERC20.sol";
+import "./interfaces/klayswap/IExchange.sol";
 
 contract Treasury is Ownable {
     using SafeERC20 for IERC20;
+
+    IExchange public exchange;
 
     /**
      * @notice Triggered when an amount of an ERC20 has been transferred from this contract to an address
@@ -33,6 +36,10 @@ contract Treasury is Ownable {
      */
     function initialize() public onlyOwner {}
 
+    function setInitialInfo(IExchange _exchange) external onlyOwner {
+        exchange = _exchange;
+    }
+
     /**
      * @notice Transfers an amount of an ERC20 from this contract to an address
      *
@@ -40,7 +47,7 @@ contract Treasury is Ownable {
      * @param _to address of the receiver
      * @param _amount amount of the transaction
      */
-    function transfer(
+    function transferERC20(
         IERC20 _token,
         address _to,
         uint256 _amount
@@ -61,7 +68,10 @@ contract Treasury is Ownable {
         );
 
         payable(_to).transfer(_amount);
-
         emit TransferKlay(_to, _amount);
+    }
+
+    function claimLPReward() external onlyOwner {
+        exchange.claimReward();
     }
 }
