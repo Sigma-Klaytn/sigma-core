@@ -294,6 +294,16 @@ contract KlayswapEscrow is IERC20, Ownable {
         IERC20(_token).approve(address(_to), type(uint256).max);
     }
 
+    //IVotingKSP
+
+    function unlockKSP() external onlyOperator {
+        votingKSP.unlockKSP();
+    }
+
+    function refixBoosting(uint256 lockPeriodRequested) external onlyOperator {
+        votingKSP.refixBoosting(lockPeriodRequested);
+    }
+
     //Modifier
     modifier onlyOperator() {
         require(operators[msg.sender], "This address is not an operator");

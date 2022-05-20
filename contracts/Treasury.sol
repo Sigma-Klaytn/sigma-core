@@ -60,7 +60,7 @@ contract Treasury is Ownable {
     /**
         @notice Withdraw the contract's KSUDT balance at the end of the launch.
      */
-    function klayWithdraw(address _to, uint256 _amount) external onlyOwner {
+    function transferKlay(address _to, uint256 _amount) external onlyOwner {
         uint256 balanceOfKLAY = address(this).balance;
         require(
             balanceOfKLAY > _amount,
