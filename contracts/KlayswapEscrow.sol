@@ -37,6 +37,7 @@ contract KlayswapEscrow is IERC20, Ownable {
 
     event DepositKSP(address depositer, uint256 amount);
     event ForwardedFee(uint256 kspAmount, uint256 kusdtAmount);
+    event Voted(address pool, uint256 amount);
 
     /**
      @notice Approve contracts to mint and renounce ownership
@@ -182,6 +183,7 @@ contract KlayswapEscrow is IERC20, Ownable {
      */
     function _addVoting(address exchange, uint256 amount) internal {
         poolVoting.addVoting(exchange, amount);
+        emit Voted(exchange, amount);
     }
 
     /**
@@ -200,14 +202,24 @@ contract KlayswapEscrow is IERC20, Ownable {
         require(pools.length > 0, "Voting arrays are empty.");
 
         uint256 vKspBalance = votingKSP.balanceOf(address(this)); //in wei
-
+        uint256 usedVKsp = 0;
         for (uint256 i = 0; i < pools.length; i++) {
             address pool = pools[i];
             uint256 voteWeight = weights[i];
 
             uint256 kspVoteWeight = ((vKspBalance * voteWeight) /
                 weightsTotal) / 1e18;
-            _addVoting(pool, kspVoteWeight);
+            if (kspVoteWeight != 0) {
+                _addVoting(pool, kspVoteWeight);
+                usedVKsp += kspVoteWeight;
+            }
+        }
+
+        if (vKspBalance / 1e18 > 0) {
+            if (vKspBalance / 1e18 - usedVKsp > 0) {
+                uint256 leftvKSP = vKspBalance / 1e18 - usedVKsp;
+                _addVoting(pools[pools.length - 1], leftvKSP);
+            }
         }
     }
 

@@ -89,6 +89,7 @@ contract FeeDistributor is Ownable {
         kusdt.approve(address(factory), type(uint256).max);
         kusdt.approve(address(exchange), type(uint256).max);
         sig.approve(address(exchange), type(uint256).max);
+        sig.approve(address(sigFarm), type(uint256).max);
     }
 
     function distributeSIG(uint256 _amount) external onlyOperator {
@@ -110,7 +111,7 @@ contract FeeDistributor is Ownable {
             "sigKSPStakingAllocAmount should be bigger than 0."
         );
 
-        sig.safeTransfer(address(sigFarm), sigFarmAllocAmount / 1e5);
+        sigFarm.depositFee(sigFarmAllocAmount / 1e5);
         sig.safeTransfer(
             address(sigKSPStaking),
             sigKSPStakingAllocAmount / 1e5
@@ -233,6 +234,10 @@ contract FeeDistributor is Ownable {
             minAmountA,
             minAmountB
         );
+    }
+
+    function approveToken(address _token, address _to) external onlyOperator {
+        IERC20(_token).approve(address(_to), type(uint256).max);
     }
 
     // Modifier
