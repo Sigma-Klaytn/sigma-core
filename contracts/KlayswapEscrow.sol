@@ -7,7 +7,6 @@ import "./interfaces/klayswap/IVotingKSP.sol";
 import "./interfaces/klayswap/IPoolVoting.sol";
 import "./interfaces/sigma/ISigmaVoter.sol";
 import "./interfaces/klayswap/IFactory.sol";
-import "./interfaces/sigma/ISigKSPStaking.sol";
 import "./interfaces/sigma/IFeeDistributor.sol";
 
 contract KlayswapEscrow is IERC20, Ownable {
@@ -28,7 +27,6 @@ contract KlayswapEscrow is IERC20, Ownable {
     IFactory public factory;
 
     ISigmaVoter public sigmaVoter;
-    ISigKSPStaking public sigKSPStaking;
     IFeeDistributor public feeDistributor;
 
     uint256 public constant MAX_LOCK_PERIOD = 1555200000;
@@ -62,7 +60,6 @@ contract KlayswapEscrow is IERC20, Ownable {
         IVotingKSP _votingKSP,
         IPoolVoting _poolVoting,
         ISigmaVoter _sigmaVoter,
-        ISigKSPStaking _sigKSPStaking,
         IFactory _factory,
         IFeeDistributor _feeDistributor
     ) external onlyOwner {
@@ -71,7 +68,6 @@ contract KlayswapEscrow is IERC20, Ownable {
         votingKSP = _votingKSP;
         poolVoting = _poolVoting;
         sigmaVoter = _sigmaVoter;
-        sigKSPStaking = _sigKSPStaking;
         factory = _factory;
         feeDistributor = _feeDistributor;
 
