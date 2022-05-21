@@ -135,7 +135,7 @@ contract KlayswapEscrow is IERC20, Ownable {
     /* ========== Public | External Function  ========== */
 
     /**
-        @notice Deposit KSP and get sigKSP in return. sigKSP is Tokenized vKSP.
+        @notice Receive Klay
      */
     receive() external payable {}
 
@@ -186,7 +186,7 @@ contract KlayswapEscrow is IERC20, Ownable {
         @param exchange : Pool address. 
         @param amount : The amount can be entered in integer units  
      */
-    function _addVoting(address exchange, uint256 amount) internal {
+    function addVoting(address exchange, uint256 amount) public onlyOperator {
         poolVoting.addVoting(exchange, amount);
         emit Voted(exchange, amount);
     }
@@ -215,7 +215,7 @@ contract KlayswapEscrow is IERC20, Ownable {
             uint256 kspVoteWeight = ((vKspBalance * voteWeight) /
                 weightsTotal) / 1e18;
             if (kspVoteWeight != 0) {
-                _addVoting(pool, kspVoteWeight);
+                addVoting(pool, kspVoteWeight);
                 usedVKsp += kspVoteWeight;
             }
         }
@@ -223,7 +223,7 @@ contract KlayswapEscrow is IERC20, Ownable {
         if (vKspBalance / 1e18 > 0) {
             if (vKspBalance / 1e18 - usedVKsp > 0) {
                 uint256 leftvKSP = vKspBalance / 1e18 - usedVKsp;
-                _addVoting(pools[pools.length - 1], leftvKSP);
+                addVoting(pools[pools.length - 1], leftvKSP);
             }
         }
     }

@@ -32,6 +32,11 @@ contract FeeDistributor is Ownable {
     /* ========== Public | External Function  ========== */
 
     /**
+        @notice Receive Klay
+     */
+    receive() external payable {}
+
+    /**
         @notice Deposit protocol fees into the contract, to be distributed to lockers
         @dev Caller must have given approval for this contract to transfer `_token`
         @param _token Token being deposited

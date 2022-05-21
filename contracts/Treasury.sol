@@ -32,6 +32,11 @@ contract Treasury is Ownable {
     event TransferKlay(address indexed to, uint256 amount);
 
     /**
+        @notice Receive Klay
+     */
+    receive() external payable {}
+
+    /**
      * @notice Used to initialize a new Treasury contract
      */
     function initialize() public onlyOwner {}
