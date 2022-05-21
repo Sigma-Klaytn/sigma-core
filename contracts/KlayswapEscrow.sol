@@ -136,6 +136,11 @@ contract KlayswapEscrow is IERC20, Ownable {
 
     /**
         @notice Deposit KSP and get sigKSP in return. sigKSP is Tokenized vKSP.
+     */
+    receive() external payable {}
+
+    /**
+        @notice Deposit KSP and get sigKSP in return. sigKSP is Tokenized vKSP.
         @param _amount Amount of ksp to deposit. The unit is 10^18.
      */
     function depositKSP(uint256 _amount) external returns (bool) {
