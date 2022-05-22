@@ -35,7 +35,7 @@ contract Lockdrop is Ownable {
     uint256 public phase2StartTs;
     uint256 public phase2EndTs;
     uint256 public immutable HOUR = 3600;
-    uint256 public immutable TOTAL_SIG_SUPPLY = 9000000000000000000000000;
+    uint256 public immutable TOTAL_SIG_SUPPLY = 2500000000000000000000000;
 
     uint256 public immutable LOCK_1_MONTHS = 2628000;
     uint256 public immutable LOCK_3_MONTHS = 7884000;
@@ -316,6 +316,29 @@ contract Lockdrop is Ownable {
 
             return (portion * TOTAL_SIG_SUPPLY) / 1e18;
         }
+    }
+
+    /**
+     @notice Estimate SIG Token allocation for given ksp token amount.
+     */
+    function estimateTotalAllocatedSIGToken(uint256 _amount, uint256 _lockMonth)
+        external
+        view
+        returns (uint256)
+    {
+        require(_amount > 0, "Amount should be bigger than 0");
+        require(
+            _lockMonth == LOCK_1_MONTHS ||
+                _lockMonth == LOCK_3_MONTHS ||
+                _lockMonth == LOCK_6_MONTHS ||
+                _lockMonth == LOCK_10_MONTHS,
+            "Lock Month must be one of 1,3,6 or 10 months."
+        );
+
+        uint256 weight = (_amount * multiplierOf[_lockMonth]) / 1e5;
+        uint256 portion = _getWithdrawableTokenPortion(weight, totalWeight);
+
+        return (portion * TOTAL_SIG_SUPPLY) / 1e18;
     }
 
     /**
