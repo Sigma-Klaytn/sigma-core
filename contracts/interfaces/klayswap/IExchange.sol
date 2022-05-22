@@ -12,4 +12,9 @@ interface IExchange {
         uint256 minAmountA,
         uint256 minAmountB
     ) external;
+
+    function estimatePos(address token, uint256 amount)
+        external
+        view
+        returns (uint256);
 }
