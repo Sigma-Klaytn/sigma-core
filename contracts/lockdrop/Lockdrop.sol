@@ -39,8 +39,9 @@ contract Lockdrop is Ownable {
 
     uint256 public immutable LOCK_1_MONTHS = 2628000;
     uint256 public immutable LOCK_3_MONTHS = 7884000;
-    uint256 public immutable LOCK_6_MONTHS = 15768000;
-    uint256 public immutable LOCK_10_MONTHS = 26280000;
+    uint256 public immutable LOCK_6_MONTHS = 15770000;
+    uint256 public immutable LOCK_9_MONTHS = 23650000;
+    uint256 public immutable LOCK_12_MONTHS = 31540000;
 
     mapping(uint256 => uint256) public multiplierOf; // Multipler of each lock month
 
@@ -78,8 +79,9 @@ contract Lockdrop is Ownable {
             _lockMonth == LOCK_1_MONTHS ||
                 _lockMonth == LOCK_3_MONTHS ||
                 _lockMonth == LOCK_6_MONTHS ||
-                _lockMonth == LOCK_10_MONTHS,
-            "Lock Month must be one of 1,3,6 or 10 months."
+                _lockMonth == LOCK_9_MONTHS ||
+                _lockMonth == LOCK_12_MONTHS,
+            "Lock Month must be one of 1,3,6,9 or 12 months."
         );
         //Transfer KSP
         KSP.safeTransferFrom(msg.sender, address(this), _amount);
@@ -119,8 +121,9 @@ contract Lockdrop is Ownable {
             _lockMonth == LOCK_1_MONTHS ||
                 _lockMonth == LOCK_3_MONTHS ||
                 _lockMonth == LOCK_6_MONTHS ||
-                _lockMonth == LOCK_10_MONTHS,
-            "Lock Month must be one of 1,3,6 or 10 months."
+                _lockMonth == LOCK_9_MONTHS ||
+                _lockMonth == LOCK_12_MONTHS,
+            "Lock Month must be one of 1,3,6,9 or 12 months."
         );
         DepositInfo storage userDeposit = depositOf[msg.sender];
         require(
@@ -331,8 +334,9 @@ contract Lockdrop is Ownable {
             _lockMonth == LOCK_1_MONTHS ||
                 _lockMonth == LOCK_3_MONTHS ||
                 _lockMonth == LOCK_6_MONTHS ||
-                _lockMonth == LOCK_10_MONTHS,
-            "Lock Month must be one of 1,3,6 or 10 months."
+                _lockMonth == LOCK_9_MONTHS ||
+                _lockMonth == LOCK_12_MONTHS,
+            "Lock Month must be one of 1,3,6,9 or 12 months."
         );
 
         uint256 weight = (_amount * multiplierOf[_lockMonth]) / 1e5;
@@ -415,8 +419,12 @@ contract Lockdrop is Ownable {
         uint256 _depositAmount,
         uint256 _totalDepositAmount
     ) internal pure returns (uint256) {
-        uint256 portion = (_depositAmount * 1e18) / _totalDepositAmount;
-        return portion;
+        if (_totalDepositAmount == 0) {
+            return 1e18;
+        } else {
+            uint256 portion = (_depositAmount * 1e18) / _totalDepositAmount;
+            return portion;
+        }
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -462,10 +470,11 @@ contract Lockdrop is Ownable {
         receiver = _receiver;
         vestingPeriod = _vestingPeriod;
 
-        multiplierOf[LOCK_1_MONTHS] = 9 * 1e4; // 0.9x
-        multiplierOf[LOCK_3_MONTHS] = 3 * 1e5; // 3x
-        multiplierOf[LOCK_6_MONTHS] = 7 * 1e5; // 7x
-        multiplierOf[LOCK_10_MONTHS] = 18 * 1e5; // 18x
+        multiplierOf[LOCK_1_MONTHS] = 8 * 1e4; // 0.8x
+        multiplierOf[LOCK_3_MONTHS] = 27 * 1e4; // 2.7x
+        multiplierOf[LOCK_6_MONTHS] = 6 * 1e5; // 6x
+        multiplierOf[LOCK_9_MONTHS] = 11 * 1e5; // 11x
+        multiplierOf[LOCK_12_MONTHS] = 22 * 1e5; // 18x
 
         emit InitialInfoSet(
             phase1StartTs,
