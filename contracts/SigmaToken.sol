@@ -723,7 +723,7 @@ contract SigmaToken is
     OwnerRole
 {
     constructor(address payable owner)
-        KIP7Metadata("Simga", "SIG", 18)
+        KIP7Metadata("Sigma", "SIG", 18)
         OwnerRole(owner)
     {
         _mint(owner, 100000000 * (10**18));
