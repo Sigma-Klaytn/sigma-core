@@ -287,7 +287,8 @@ contract Lockdrop is Ownable {
         if (
             userDeposit.amount == 0 ||
             userDeposit.isLPTokensClaimed ||
-            !isLPTokensReleased
+            !isLPTokensReleased ||
+            totalLPTokenSupply == 0
         ) {
             return 0;
         }
@@ -295,7 +296,7 @@ contract Lockdrop is Ownable {
             userDeposit.amount,
             totalDeposit
         );
-        uint256 amount = (portion * TOTAL_SIG_SUPPLY) / 1e18;
+        uint256 amount = (portion * totalLPTokenSupply) / 1e18;
         return amount;
     }
 
@@ -474,7 +475,7 @@ contract Lockdrop is Ownable {
         multiplierOf[LOCK_3_MONTHS] = 27 * 1e4; // 2.7x
         multiplierOf[LOCK_6_MONTHS] = 6 * 1e5; // 6x
         multiplierOf[LOCK_9_MONTHS] = 11 * 1e5; // 11x
-        multiplierOf[LOCK_12_MONTHS] = 22 * 1e5; // 18x
+        multiplierOf[LOCK_12_MONTHS] = 22 * 1e5; // 22x
 
         emit InitialInfoSet(
             phase1StartTs,
