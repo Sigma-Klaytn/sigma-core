@@ -270,17 +270,19 @@ contract KlayswapEscrow is IERC20, Ownable {
     function exchangeKlayPos(
         address token,
         uint256 amount,
-        address[] memory path
+        address[] memory path,
+        uint256 klayAmount
     ) external payable onlyOperator {
-        factory.exchangeKlayPos(token, amount, path);
+        factory.exchangeKlayPos{value: klayAmount}(token, amount, path);
     }
 
     function exchangeKlayNeg(
         address token,
         uint256 amount,
-        address[] memory path
+        address[] memory path,
+        uint256 klayAmount
     ) external payable onlyOperator {
-        factory.exchangeKlayNeg(token, amount, path);
+        factory.exchangeKlayNeg{value: klayAmount}(token, amount, path);
     }
 
     function exchangeKctNeg(

@@ -62,9 +62,10 @@ contract('Lockdrop', function (accounts) {
     const MINUTE = 60;
 
     const LOCK_1_MONTHS = 2628000; // 0.9x
-    const LOCK_3_MONTHS = 7884000; // 3x
-    const LOCK_6_MONTHS = 15768000; // 7x
-    const LOCK_10_MONTHS = 26280000; // 18x
+    const LOCK_3_MONTHS = 7884000; // 2.7x
+    const LOCK_6_MONTHS = 15770000; // 6x
+    const LOCK_9_MONTHS = 23650000; // 11x
+    const LOCK_12_MONTHS = 31540000; // 18x
 
     const vestingPeriod = new BN((3 * DAY).toString());
 
@@ -243,7 +244,7 @@ contract('Lockdrop', function (accounts) {
             );
 
             await expectRevert(
-                Lockdrop.deposit(bnMantissa(100), LOCK_1_MONTHS + 1, { from: userA }), 'Lock Month must be one of 1,3,6 or 10 months.'
+                Lockdrop.deposit(bnMantissa(100), LOCK_1_MONTHS + 1, { from: userA }), 'Lock Month must be one of 1,3,6,9 or 12 months.'
             )
 
 
@@ -289,17 +290,17 @@ contract('Lockdrop', function (accounts) {
 
             await Lockdrop.deposit(bnMantissa(100), LOCK_3_MONTHS, { from: userB });
             await Lockdrop.deposit(bnMantissa(200), LOCK_6_MONTHS, { from: userC });
-            await Lockdrop.deposit(bnMantissa(300), LOCK_10_MONTHS, { from: userD });
+            await Lockdrop.deposit(bnMantissa(300), LOCK_12_MONTHS, { from: userD });
 
             // Check Total Deposit (100+100+200+300 = 700)
             expectEqual(await Lockdrop.totalDeposit(), bnMantissa(700));
 
-            // Check Total Weight (100*0.9+100*3+200*7+300*18 = 7190)
-            expectEqual(await Lockdrop.totalWeight(), bnMantissa(7190));
+            // Check Total Weight (100*0.8+100*2.7+200*6+300*22 =8150)
+            expectEqual(await Lockdrop.totalWeight(), bnMantissa(8150));
 
             // 3. Set Lock Month 
-            await expectRevert(Lockdrop.setLockMonth(LOCK_1_MONTHS + 1, { from: userA }), 'Lock Month must be one of 1,3,6 or 10 months.')
-            await expectRevert(Lockdrop.setLockMonth(0, { from: userA }), 'Lock Month must be one of 1,3,6 or 10 months.')
+            await expectRevert(Lockdrop.setLockMonth(LOCK_1_MONTHS + 1, { from: userA }), 'Lock Month must be one of 1,3,6,9 or 12 months.')
+            await expectRevert(Lockdrop.setLockMonth(0, { from: userA }), 'Lock Month must be one of 1,3,6,9 or 12 months.')
             await expectRevert(Lockdrop.setLockMonth(LOCK_3_MONTHS, { from: randomUser }), 'No funds available to change lock month')
 
             let currentTotalWeight = await Lockdrop.totalWeight()
@@ -326,7 +327,7 @@ contract('Lockdrop', function (accounts) {
 
             depositInfo = await Lockdrop.depositOf(userA)
             expectEqual(depositInfo[0], bnMantissa(200)); // amount 
-            expectEqual(depositInfo[1], bnMantissa(600)); // weight
+            expectEqual(depositInfo[1], bnMantissa(540)); // weight
             expectEqual(depositInfo[2], new BN(LOCK_3_MONTHS)); // lock month 
 
             // 5. Check last Reverts
@@ -391,7 +392,7 @@ contract('Lockdrop', function (accounts) {
             await Lockdrop.deposit(bnMantissa(100), LOCK_1_MONTHS, { from: userA });
             await Lockdrop.deposit(bnMantissa(200), LOCK_3_MONTHS, { from: userB });
             await Lockdrop.deposit(bnMantissa(300), LOCK_6_MONTHS, { from: userC });
-            await Lockdrop.deposit(bnMantissa(400), LOCK_10_MONTHS, { from: userD });
+            await Lockdrop.deposit(bnMantissa(400), LOCK_12_MONTHS, { from: userD });
 
         });
 
@@ -618,15 +619,15 @@ contract('Lockdrop', function (accounts) {
 
 
             // 2. Mint SIG to root account which is the owner of the contract.
-            await SIGToken.mint(bnMantissa(9000000), { from: root })
+            await SIGToken.mint(bnMantissa(2500000), { from: root })
             await SIGToken.approve(Lockdrop.address, MAX_UINT_256, { from: root })
 
             // 3. Release Token.
             let receipt = await Lockdrop.releaseSIGToken({ from: root });
             expectEvent(receipt, 'SIGTokenReleased', {
-                releasedTokenAmount: bnMantissa(9000000)
+                releasedTokenAmount: bnMantissa(2500000)
             })
-            expectEqual(await SIGToken.balanceOf(Lockdrop.address), bnMantissa(9000000))
+            expectEqual(await SIGToken.balanceOf(Lockdrop.address), bnMantissa(2500000))
             expectEqual(await Lockdrop.isSIGTokensReleased(), true);
 
             // 4. Check revert
@@ -715,7 +716,7 @@ contract('Lockdrop', function (accounts) {
             await Lockdrop.deposit(bnMantissa(100), LOCK_1_MONTHS, { from: userA });
             await Lockdrop.deposit(bnMantissa(200), LOCK_3_MONTHS, { from: userB });
             await Lockdrop.deposit(bnMantissa(300), LOCK_6_MONTHS, { from: userC });
-            await Lockdrop.deposit(bnMantissa(400), LOCK_10_MONTHS, { from: userD });
+            await Lockdrop.deposit(bnMantissa(400), LOCK_12_MONTHS, { from: userD });
 
 
             // withdraw ksp 
@@ -729,7 +730,7 @@ contract('Lockdrop', function (accounts) {
             // not released yet
             await expectRevert(Lockdrop.claimSIGTokens({ from: userA }), 'Sig Token is not released yet')
 
-            const TOTAL_SIG_SUPPLY = bnMantissa(9000000)
+            const TOTAL_SIG_SUPPLY = bnMantissa(2500000)
             // release sig token
             await SIGToken.mint(TOTAL_SIG_SUPPLY, { from: root })
             await SIGToken.approve(Lockdrop.address, MAX_UINT_256, { from: root })

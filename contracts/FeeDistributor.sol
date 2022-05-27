@@ -99,7 +99,7 @@ contract FeeDistributor is Ownable {
 
     function distributeSIG(uint256 _amount) external onlyOperator {
         uint256 sigBalance = sig.balanceOf(address(this));
-        require(sigBalance >= _amount, "No sig to distribute");
+        require(_amount <= sigBalance, "No sig to distribute");
 
         uint256 sigFarmAllocAmount = (_amount * ALLOC_SIG_FARM * 1e5) /
             (ALLOC_SIG_FARM + ALLOC_SIGKSP_STAKING);
@@ -126,7 +126,7 @@ contract FeeDistributor is Ownable {
 
     function distributeKSP(uint256 _amount) external onlyOperator {
         uint256 kspBalance = ksp.balanceOf(address(this));
-        require(_amount >= kspBalance, "insufficient ksp balance");
+        require(_amount <= kspBalance, "insufficient ksp balance");
         ksp.safeTransfer(address(sigKSPStaking), _amount);
         sigKSPStaking.updateRewardAmount();
     }
@@ -137,7 +137,7 @@ contract FeeDistributor is Ownable {
         address _to
     ) external onlyOperator {
         uint256 lpBalance = lp.balanceOf(address(this));
-        require(_amount >= lpBalance, "insufficient lp balance");
+        require(_amount <= lpBalance, "insufficient lp balance");
         lp.safeTransfer(_to, lpBalance);
     }
 
