@@ -341,7 +341,10 @@ contract Lockdrop is Ownable {
         );
 
         uint256 weight = (_amount * multiplierOf[_lockMonth]) / 1e5;
-        uint256 portion = _getWithdrawableTokenPortion(weight, totalWeight);
+        uint256 portion = _getWithdrawableTokenPortion(
+            weight,
+            totalWeight + weight
+        );
 
         return (portion * TOTAL_SIG_SUPPLY) / 1e18;
     }
@@ -484,6 +487,13 @@ contract Lockdrop is Ownable {
             _receiver,
             vestingPeriod
         );
+    }
+
+    /**
+        @notice set lp token address. 
+     */
+    function setLPTokenAddress(address _lpToken) external onlyOwner {
+        lpToken = IERC20(_lpToken);
     }
 
     /**
