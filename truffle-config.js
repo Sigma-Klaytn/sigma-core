@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 module.exports = {
+    plugins: ["truffle-contract-size"],
     networks: {
         development: {
             host: 'localhost',
@@ -115,7 +116,13 @@ module.exports = {
 
     compilers: {
         solc: {
-            version: '0.8.9'
+            version: '0.8.9',
+            settings: {
+                optimizer: {
+                    enabled: true,
+                    runs: 200
+                }
+            }
         }
     }
 };

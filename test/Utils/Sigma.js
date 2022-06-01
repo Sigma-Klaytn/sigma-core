@@ -18,7 +18,7 @@ const Vault = artifacts.require('Vault');
 const KSPVault = artifacts.require('KSPVault');
 const MockVotingKSP = artifacts.require('MockVotingKSP');
 const IPoolVoting = artifacts.require('IPoolVoting');
-const KSPConverter = artifacts.require('KSPConverter');
+// const KSPConverter = artifacts.require('KSPConverter');
 const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
 const TokenSale = artifacts.require('TokenSale');
@@ -30,6 +30,10 @@ const LpFarm = artifacts.require('LPFarm');
 const Lockdrop = artifacts.require('Lockdrop');
 const SigKSPFarm = artifacts.require('SigKSPFarm');
 const SigmaVoter = artifacts.require('SigmaVoter');
+const UUPSProxy = artifacts.require('UUPSProxy')
+const UpgradeableLockdrop = artifacts.require('UpgradeableLockdrop')
+const UpgradeableLockdropV2 = artifacts.require('UpgradeableLockdropV2')
+
 
 async function makeErc20Token(opts = {}) {
     const quantity = etherUnsigned(dfn(opts.quantity, 1e25));
@@ -58,9 +62,9 @@ async function makeMockVotingKSP(kspToken, opts = {}) {
     return await MockVotingKSP.new(kspToken);
 }
 
-async function makeKSPConverter(kspToken, votingKSP, opts = {}) {
-    return await KSPConverter.new(kspToken, votingKSP);
-}
+// async function makeKSPConverter(kspToken, votingKSP, opts = {}) {
+//     return await KSPConverter.new(kspToken, votingKSP);
+// }
 
 async function makeSigKSPStaking(opts = {}) {
     return await SigKSPStaking.new();
@@ -97,6 +101,8 @@ async function makeLockdrop(opts = {}) {
     return await Lockdrop.new();
 }
 
+
+
 async function makeSigKSPFarm(opts = {}) {
     return await SigKSPFarm.new();
 }
@@ -104,13 +110,24 @@ async function makeSigKSPFarm(opts = {}) {
 async function makeSigmaVoter(opts = {}) {
     return await SigmaVoter.new();
 }
+
+async function makeUUPSProxy(implAddress, data, opts = {}) {
+    return await UUPSProxy.new(implAddress, data);
+}
+
+async function makeUpgradeableLockdrop(opts = {}) {
+    return await UpgradeableLockdrop.new()
+}
+async function makeUpgradeableLockdropV2(opts = {}) {
+    return await UpgradeableLockdropV2.new()
+}
 module.exports = {
     MockERC20,
     DepositingVault,
     Vault,
     KSPVault,
     MockVotingKSP,
-    KSPConverter,
+    // KSPConverter,
     SigKSPStaking,
     SIGLocker,
     TokenSale,
@@ -123,13 +140,16 @@ module.exports = {
     Lockdrop,
     SigKSPFarm,
     SigmaVoter,
+    UUPSProxy,
+    UpgradeableLockdrop,
+    UpgradeableLockdropV2,
 
     makeErc20Token,
     makeDepositingVault,
     makeVault,
     makeKSPVault,
     makeMockVotingKSP,
-    makeKSPConverter,
+    // makeKSPConverter,
     makeSigKSPStaking,
     makeSIGLocker,
     makeTokenSale,
@@ -141,5 +161,8 @@ module.exports = {
     makeLpFarm,
     makeLockdrop,
     makeSigKSPFarm,
-    makeSigmaVoter
+    makeSigmaVoter,
+    makeUUPSProxy,
+    makeUpgradeableLockdrop,
+    makeUpgradeableLockdropV2
 };
