@@ -31,7 +31,7 @@ const Lockdrop = artifacts.require('Lockdrop');
 const SigKSPFarm = artifacts.require('SigKSPFarm');
 const SigmaVoter = artifacts.require('SigmaVoter');
 const UUPSProxy = artifacts.require('UUPSProxy')
-const UpgradeableLockdrop = artifacts.require('UpgradeableLockdrop')
+const UpgradeableLockdrop = artifacts.require('UpgradeableLockdropV1')
 const UpgradeableLockdropV2 = artifacts.require('UpgradeableLockdropV2')
 
 

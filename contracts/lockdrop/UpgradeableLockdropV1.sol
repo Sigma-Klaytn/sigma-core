@@ -9,7 +9,7 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-contract UpgradeableLockdrop is
+contract UpgradeableLockdropV1 is
     Initializable,
     OwnableUpgradeable,
     UUPSUpgradeable,
@@ -597,4 +597,12 @@ contract UpgradeableLockdrop is
         override
         onlyOwner
     {}
+
+    function pause() external onlyOwner whenNotPaused {
+        _pause();
+    }
+
+    function unpause() external onlyOwner whenPaused {
+        _unpause();
+    }
 }
