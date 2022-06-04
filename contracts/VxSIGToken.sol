@@ -86,15 +86,4 @@ contract vxSIGToken is IvxERC20, Ownable {
 
         emit Burn(account, amount);
     }
-
-    //TODO: approve 관련해서 어떻게 할 건지, delegate to EOA & CA 관련
-    // function approve(address _spender, uint256 _value)
-    //     external
-    //     override
-    //     returns (bool)
-    // {
-    //     allowances[msg.sender][_spender] = _value;
-    //     emit Approval(msg.sender, _spender, _value);
-    //     return true;
-    // }
 }
