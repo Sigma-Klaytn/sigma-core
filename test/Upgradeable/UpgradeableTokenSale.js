@@ -1,4 +1,4 @@
-const { makeErc20Token, MockERC20, makeTokenSale } = require('../Utils/Sigma');
+const { makeErc20Token, UpgradeableTokenSaleV1, UpgradeableTokenSaleV2, MockERC20, makeUpgradeableTokenSaleV1, makeUpgradeableTokenSaleV2, makeUUPSProxy, UUPSProxy } = require('../Utils/Sigma');
 
 const {
     expectAlmostEqualMantissa,
@@ -38,7 +38,7 @@ const MAX_UINT_256 = new BN(2).pow(new BN(256)).sub(new BN(1));
 // --network :  You should run this code below in local environment since expectEvent doesn't work on Klaytn testnet for now.
 // You should fund your ganache accounts more than 10000klay. Use this line >> ganache-cli -e 10000
 
-contract('TokenSale', function (accounts) {
+contract('UpgradeableTokenSale', function (accounts) {
     let root = accounts[0];
     let receiver = accounts[1]; // Admin address who gets KLAY at the end of phase2.
     let userA = accounts[2];
@@ -47,6 +47,8 @@ contract('TokenSale', function (accounts) {
     let userD = accounts[5];
 
     let SIGToken;
+    let TokenSaleImpl;
+    let TokenSaleProxy;
     let TokenSale;
 
     const WEEK = 604800;
@@ -64,7 +66,13 @@ contract('TokenSale', function (accounts) {
         beforeEach(async () => {
             //Deploy from the start.
             SIGToken = await makeErc20Token();
-            TokenSale = await makeTokenSale();
+
+            TokenSaleImpl = await makeUpgradeableTokenSaleV1();
+            TokenSaleProxy = await makeUUPSProxy(TokenSaleImpl.address, "0x")
+            TokenSale = await UpgradeableTokenSaleV1.at(TokenSaleProxy.address);
+
+            await TokenSale.initialize()
+
         });
 
         it('Test : 0.SetInitialInfo', async () => {
@@ -89,18 +97,6 @@ contract('TokenSale', function (accounts) {
             );
 
             //2. Check Reverts.
-
-            await expectRevert(
-                TokenSale.setInitialInfo(
-                    currentTime, // current time should be smaller than phase1StartTs
-                    phase2StartTs,
-                    phase2EndTs,
-                    SIGToken.address,
-                    receiver,
-                    { from: root }
-                ),
-                'Phase1 should start in the future.'
-            );
 
             await expectRevert(
                 TokenSale.setInitialInfo(
@@ -247,7 +243,12 @@ contract('TokenSale', function (accounts) {
 
             //Deploy from the start.
             SIGToken = await makeErc20Token({ symbol: 'SIG', name: 'SIGMA Token' });
-            TokenSale = await makeTokenSale();
+
+            TokenSaleImpl = await makeUpgradeableTokenSaleV1();
+            TokenSaleProxy = await makeUUPSProxy(TokenSaleImpl.address, "0x")
+            TokenSale = await UpgradeableTokenSaleV1.at(TokenSaleProxy.address);
+
+            await TokenSale.initialize()
 
             // 0. Preparation.
             let currentTime = parseInt(await time.latest());
@@ -567,6 +568,134 @@ contract('TokenSale', function (accounts) {
             expectEqual(recieverKLAYBalance.sub(beforeRecieverKLAYBalance), KLAYBalance);
         });
     });
+
+
+    describe('Test : Upgrade Smart contract', async () => {
+        beforeEach(async () => {
+
+            //Deploy from the start.
+            SIGToken = await makeErc20Token({ symbol: 'SIG', name: 'SIGMA Token' });
+
+            TokenSaleImpl = await makeUpgradeableTokenSaleV1();
+            TokenSaleProxy = await makeUUPSProxy(TokenSaleImpl.address, "0x")
+            TokenSale = await UpgradeableTokenSaleV1.at(TokenSaleProxy.address);
+
+            await TokenSale.initialize()
+
+            // 0. Preparation.
+            let currentTime = parseInt(await time.latest());
+            let phase1StartTs = currentTime + MINUTE;
+            let phase2StartTs = phase1StartTs + 4 * DAY;
+            let phase2EndTs = phase2StartTs + DAY;
+
+            let receipt = await TokenSale.setInitialInfo(
+                phase1StartTs,
+                phase2StartTs,
+                phase2EndTs,
+                SIGToken.address,
+                // KLAYToken.address,
+                receiver,
+                { from: root }
+            );
+
+            //useA, userB, userC deposit each 100,200,300 & userD didn't deposit.
+            await time.increase(time.duration.minutes(3));
+
+            await TokenSale.deposit({ from: userA, value: bnMantissa(100) });
+            await TokenSale.deposit({ from: userB, value: bnMantissa(100) });
+            await TokenSale.deposit({ from: userC, value: bnMantissa(100) });
+
+        });
+
+        it('Upgrade To new implemantation', async () => {
+            // 0. Check Reverts
+            await expectRevert(
+                TokenSale.withdrawTokens({ from: userA }),
+                'You can\'t withdraw tokens before phase 2 ends.'
+            );
+
+
+            // 1. Check if it's end of Phase 2
+            await time.increase(time.duration.days(5));
+            const currentTime = parseInt(await time.latest())
+            expect(currentTime >= parseInt(await TokenSale.phase2EndTs())).to.be.ok;
+
+            // 2. Check Reverts.
+            await expectRevert(
+                TokenSale.withdrawTokens({ from: userA }),
+                'Token is not released yet'
+            );
+
+            // 3. Release Token from owner.
+            await SIGToken.mint(bnMantissa(9000000), { from: root })
+            await SIGToken.approve(TokenSale.address, MAX_UINT_256, { from: root })
+            await TokenSale.releaseToken({ from: root });
+
+            // 4. Check Revert
+            await expectRevert(
+                TokenSale.withdrawTokens({ from: userD }),
+                'No funds available to withdraw token'
+            );
+
+
+            // 5. Withdraw Token A : 100 B : 200 : C :300
+            const toatlSupply = await TokenSale.TOTAL_SIG_SUPPLY()
+            const totalDeposit = await TokenSale.totalDeposit()
+            const userAKLAYDeposit = ((await TokenSale.depositOf(userA))[0]).mul(bnMantissa(1))
+            const userBKLAYDeposit = ((await TokenSale.depositOf(userB))[0]).mul(bnMantissa(1))
+            const userCKLAYDeposit = ((await TokenSale.depositOf(userC))[0]).mul(bnMantissa(1))
+
+
+            const userAReedeamableExpect = (toatlSupply.mul(userAKLAYDeposit.div(totalDeposit))).div(bnMantissa(1))
+            const userBReedeamableExpect = (toatlSupply.mul(userBKLAYDeposit.div(totalDeposit))).div(bnMantissa(1))
+            const userCReedeamableExpect = (toatlSupply.mul(userCKLAYDeposit.div(totalDeposit))).div(bnMantissa(1))
+
+            console.log("userAReedeamableExpect : ", userAReedeamableExpect.toString())
+            console.log("userBReedeamableExpect : ", userBReedeamableExpect.toString())
+            console.log("userCReedeamableExpect : ", userCReedeamableExpect.toString())
+
+            let receipt = await TokenSale.withdrawTokens({ from: userA })
+            expectEvent(receipt, "TokenClaimed", {
+                user: userA,
+                amount: userAReedeamableExpect
+            })
+
+            // 6. Upgrade Contract that only gives you half of the expected tokens.
+
+            let TokenSaleImpl2 = await makeUpgradeableTokenSaleV2()
+            await TokenSale.upgradeTo(TokenSaleImpl2.address)
+            TokenSale = await UpgradeableTokenSaleV2.at(TokenSaleProxy.address)
+
+
+            receipt = await TokenSale.withdrawTokens({ from: userB })
+            expectEvent(receipt, "TokenClaimed", {
+                user: userB,
+                amount: userBReedeamableExpect.div(new BN(2))
+            })
+
+            receipt = await TokenSale.withdrawTokens({ from: userC })
+            expectEvent(receipt, "TokenClaimed", {
+                user: userC,
+                amount: userCReedeamableExpect.div(new BN(2))
+            })
+
+            const userASIGBalance = await SIGToken.balanceOf(userA);
+            const userBSIGBalance = await SIGToken.balanceOf(userB);
+            const userCSIGBalance = await SIGToken.balanceOf(userC);
+
+            const allDistributedSIG = userASIGBalance.add(userBSIGBalance.add(userCSIGBalance))
+            console.log("allDistributedSIG : ", allDistributedSIG.toString())
+            console.log("Total supply : ", toatlSupply.toString())
+            console.log("left SIG Token in contract", (await SIGToken.balanceOf(TokenSale.address)).toString())
+
+            // 6. Check revert
+            await expectRevert(TokenSale.withdrawTokens({ from: userA }), 'Tokens are already claimed')
+            await expectRevert(TokenSale.withdrawTokens({ from: userB }), 'Tokens are already claimed')
+            await expectRevert(TokenSale.withdrawTokens({ from: userC }), 'Tokens are already claimed')
+        })
+    });
+
+
 });
 
 async function getGasFee(txInfo) {

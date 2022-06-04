@@ -33,6 +33,8 @@ const SigmaVoter = artifacts.require('SigmaVoter');
 const UUPSProxy = artifacts.require('UUPSProxy')
 const UpgradeableLockdrop = artifacts.require('UpgradeableLockdropV1')
 const UpgradeableLockdropV2 = artifacts.require('UpgradeableLockdropV2')
+const UpgradeableTokenSaleV1 = artifacts.require('UpgradeableTokenSaleV1')
+const UpgradeableTokenSaleV2 = artifacts.require('UpgradeableTokenSaleV2')
 
 
 async function makeErc20Token(opts = {}) {
@@ -121,6 +123,14 @@ async function makeUpgradeableLockdrop(opts = {}) {
 async function makeUpgradeableLockdropV2(opts = {}) {
     return await UpgradeableLockdropV2.new()
 }
+
+async function makeUpgradeableTokenSaleV1(opts = {}) {
+    return await UpgradeableTokenSaleV1.new()
+}
+
+async function makeUpgradeableTokenSaleV2(opts = {}) {
+    return await UpgradeableTokenSaleV2.new()
+}
 module.exports = {
     MockERC20,
     DepositingVault,
@@ -143,6 +153,8 @@ module.exports = {
     UUPSProxy,
     UpgradeableLockdrop,
     UpgradeableLockdropV2,
+    UpgradeableTokenSaleV1,
+    UpgradeableTokenSaleV2,
 
     makeErc20Token,
     makeDepositingVault,
@@ -164,5 +176,7 @@ module.exports = {
     makeSigmaVoter,
     makeUUPSProxy,
     makeUpgradeableLockdrop,
-    makeUpgradeableLockdropV2
+    makeUpgradeableLockdropV2,
+    makeUpgradeableTokenSaleV1,
+    makeUpgradeableTokenSaleV2
 };
