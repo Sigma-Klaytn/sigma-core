@@ -3,7 +3,6 @@ pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -16,12 +15,15 @@ import "../interfaces/sigma/IvxERC20.sol";
 // Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
-contract LpFarm is Ownable {
-    using SafeERC20 for IERC20;
-
-    IvxERC20 public vxSIG;
-
-    /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
+/// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
+contract LpFarmV1 is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable
+{
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     // Info of each user.
     struct UserInfo {
@@ -33,37 +35,40 @@ contract LpFarm is Ownable {
 
     // Info of each pool.
     struct PoolInfo {
-        IERC20 lpToken; // Address of LP token contract.
-        uint256 allocPoint; // How many allocation points assigned to this pool. ERC20s to distribute per block.
+        IERC20Upgradeable lpToken; // Address of LP token contract.
+        uint256 allocPoint; // How many allocation points assigned to this base pool. ERC20s to distribute per block.
         uint256 lastRewardBlock; // Last block number that ERC20s distribution occurs.
         uint256 accERC20PerShare; // Accumulated ERC20s per share, times 1e36.
-        uint256 boostAllocPoint; // How many allocation points assigned to this pool. ERC20s to distribute per block.
+        uint256 boostAllocPoint; // How many allocation points assigned to this boost pool. ERC20s to distribute per block.
         uint256 boostLastRewardBlock; // Last block number that ERC20s distribution occurs.
         uint256 boostAccERC20PerShare; // Accumulated ERC20s per share, times 1e36.
         uint256 totalBoostWeight; // Total boost weight of the pool
     }
 
-    // Address of the sig Token contract.
-    IERC20 public sig;
-    // The total amount of SIG that's paid out as base reward.
-    uint256 public paidOut = 0;
-    // sig tokens rewarded per block.
+    /// @notice Address of the vxSIG Token contract.
+    IvxERC20 public vxSIG;
+    /// @notice Address of the sig Token contract.
+    IERC20Upgradeable public sig;
+    /// @notice The total amount of SIG that's paid out as base reward.
+    uint256 public paidOut;
+    /// @notice sig tokens rewarded per block.
     uint256 public rewardPerBlock;
 
-    // Info of each pool.
+    /// @notice Info of each pool.
     PoolInfo[] public poolInfo;
-    // Info of each user that stakes LP tokens.
+    /// @notice Info of each user that stakes LP tokens.
     mapping(uint256 => mapping(address => UserInfo)) public userInfo;
 
     /// @notice Reward per block will be divided by totalAllocPoint
-    uint256 public totalAllocPoint = 0; // boostTotalAllocPoint + baseTotalAllocPoint
+    uint256 public totalAllocPoint; // boostTotalAllocPoint + baseTotalAllocPoint
+    /// @notice Total alloc point for boost pool.
+    uint256 public boostTotalAllocPoint;
+    /// @notice Total alloc point for base pool.
+    uint256 public baseTotalAllocPoint;
 
-    uint256 public boostTotalAllocPoint = 0;
-    uint256 public baseTotalAllocPoint = 0;
-
-    // The block number when farming starts.
+    /// @notice The block number when farming starts.
     uint256 public startBlock;
-    // The block number when farming ends.
+    /// @notice The block number when farming ends.
     uint256 public endBlock;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
@@ -71,6 +76,161 @@ contract LpFarm is Ownable {
     event Claim(address indexed user, uint256 indexed pid, uint256 amount);
     event PoolAdded(address indexed lpToken, uint256 indexed pid);
     event Funded(address indexed from, uint256 amount, uint256 newEndBlock);
+    event PoolSet(
+        uint256 pid,
+        uint256 totalAlloc,
+        uint256 baseTotalAlloc,
+        uint256 boostTotalAlloc
+    );
+    event RewardPerBlockSet(uint256 rewardPerBlock, uint256 endBlock);
+    event InitialInfoSet(
+        uint256 rewardPerBlock,
+        uint256 startBlock,
+        uint256 endBlock
+    );
+
+    /* ========== Restricted Function  ========== */
+
+    /**
+        @notice Initialize UUPS upgradeable smart contract.
+     */
+    function initialize() external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+    }
+
+    /**
+     @notice sets initialInfo of the contract.
+     */
+    function setInitialInfo(
+        IERC20Upgradeable _sig,
+        IvxERC20 _vxSIG,
+        uint256 _rewardPerBlock,
+        uint256 _startBlock
+    ) external onlyOwner {
+        sig = _sig;
+        rewardPerBlock = _rewardPerBlock;
+        startBlock = _startBlock;
+        endBlock = _startBlock;
+        vxSIG = _vxSIG;
+
+        emit InitialInfoSet(rewardPerBlock, startBlock, endBlock);
+    }
+
+    /**
+     @notice sets vxSIG Address of the contract.
+     */
+    function setVxSIGAddress(IvxERC20 _vxSIG) external onlyOwner {
+        vxSIG = _vxSIG;
+    }
+
+    /**
+      @notice Add a new lp to the pool. Can only be called by the owner.
+      @notice DO NOT add the same LP token more than once. Rewards will be messed up if you do.
+      @param _baseAllocPoint base reward allocation of the pool
+      @param _boostAllocPoint boost reward allocation of the pool
+     */
+    function addPool(
+        uint256 _baseAllocPoint,
+        uint256 _boostAllocPoint,
+        IERC20Upgradeable _lpToken
+    ) external onlyOwner {
+        _massUpdatePools();
+        uint256 lastRewardBlock = block.number > startBlock
+            ? block.number
+            : startBlock;
+        baseTotalAllocPoint += _baseAllocPoint;
+        boostTotalAllocPoint += _boostAllocPoint;
+        totalAllocPoint = baseTotalAllocPoint + boostTotalAllocPoint;
+        poolInfo.push(
+            PoolInfo({
+                lpToken: _lpToken,
+                allocPoint: _baseAllocPoint,
+                lastRewardBlock: lastRewardBlock,
+                accERC20PerShare: 0,
+                boostAllocPoint: _boostAllocPoint,
+                boostLastRewardBlock: lastRewardBlock,
+                boostAccERC20PerShare: 0,
+                totalBoostWeight: 0
+            })
+        );
+        emit PoolAdded(address(_lpToken), poolInfo.length - 1);
+    }
+
+    /**
+      @notice Update the given pool's sig allocation point. Can only be called by the owner.
+      @param _pid pool Id
+      @param _baseAllocPoint base reward allocation of the pool
+      @param _boostAllocPoint boost reward allocation of the pool
+     */
+    function setPool(
+        uint256 _pid,
+        uint256 _baseAllocPoint,
+        uint256 _boostAllocPoint
+    ) external onlyOwner {
+        _massUpdatePools();
+        baseTotalAllocPoint =
+            baseTotalAllocPoint -
+            poolInfo[_pid].allocPoint +
+            _baseAllocPoint;
+        poolInfo[_pid].allocPoint = _baseAllocPoint;
+
+        boostTotalAllocPoint =
+            boostTotalAllocPoint -
+            poolInfo[_pid].boostAllocPoint +
+            _boostAllocPoint;
+        poolInfo[_pid].boostAllocPoint = _boostAllocPoint;
+
+        totalAllocPoint = baseTotalAllocPoint + boostTotalAllocPoint;
+
+        emit PoolSet(
+            _pid,
+            totalAllocPoint,
+            baseTotalAllocPoint,
+            boostTotalAllocPoint
+        );
+    }
+
+    /**
+     @notice set rewardPerBlock. It will change endblock as well.
+     @param _rewardPerBlock reward per block.
+     */
+    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
+        require(
+            _rewardPerBlock > 0,
+            "reward per block should be bigger than 0"
+        );
+        rewardPerBlock = _rewardPerBlock;
+        uint256 sigBalance = sig.balanceOf(address(this));
+        endBlock = startBlock + (sigBalance / rewardPerBlock);
+
+        emit RewardPerBlockSet(rewardPerBlock, endBlock);
+    }
+
+    /**
+        @notice restrict upgrade to only owner.
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        virtual
+        override
+        onlyOwner
+    {}
+
+    /**
+        @notice pause contract functions.
+     */
+    function pause() external onlyOwner whenNotPaused {
+        _pause();
+    }
+
+    /**
+        @notice unpause contract functions.
+     */
+    function unpause() external onlyOwner whenPaused {
+        _unpause();
+    }
 
     /* ========== External & Public Function  ========== */
 
@@ -79,31 +239,39 @@ contract LpFarm is Ownable {
       @param _pid pool Id
       @param _amount amount of the lp token to deposit
      */
-    function deposit(uint256 _pid, uint256 _amount) public {
+    function deposit(uint256 _pid, uint256 _amount)
+        external
+        whenNotPaused
+        nonReentrant
+    {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        updatePool(_pid);
+        _updatePool(_pid);
         if (user.amount > 0) {
             uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) /
                 1e36) - user.rewardDebt;
-            erc20Transfer(msg.sender, pendingAmount);
 
             //if user has boost,
             if (user.boostWeight > 0) {
-                uint256 boostPendingaAmount = (user.boostWeight *
+                uint256 boostPendingAmount = (user.boostWeight *
                     pool.boostAccERC20PerShare) /
                     1e36 -
                     user.boostRewardDebt;
-                erc20Transfer(msg.sender, boostPendingaAmount);
+
+                pendingAmount += boostPendingAmount;
             }
+            transferSIG(msg.sender, pendingAmount);
         }
+
         pool.lpToken.safeTransferFrom(
             address(msg.sender),
             address(this),
             _amount
         );
+
         user.amount += _amount;
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
+
         if (user.boostWeight > 0) {
             user.boostRewardDebt =
                 (user.boostWeight * pool.boostAccERC20PerShare) /
@@ -118,14 +286,18 @@ contract LpFarm is Ownable {
       @param _pid pool Id
       @param _amount amount of the lp token to withdraw
      */
-    function withdraw(uint256 _pid, uint256 _amount) public {
+    function withdraw(uint256 _pid, uint256 _amount)
+        external
+        whenNotPaused
+        nonReentrant
+    {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(
             user.amount >= _amount,
             "withdraw: can't withdraw more than deposit"
         );
-        updatePool(_pid);
+        _updatePool(_pid);
 
         uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) / 1e36) -
             user.rewardDebt;
@@ -139,7 +311,7 @@ contract LpFarm is Ownable {
             pendingAmount += boostPendingAmount;
         }
 
-        erc20Transfer(msg.sender, pendingAmount);
+        transferSIG(msg.sender, pendingAmount);
 
         user.amount -= _amount;
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
@@ -148,7 +320,7 @@ contract LpFarm is Ownable {
                 (user.boostWeight * pool.boostAccERC20PerShare) /
                 1e36;
 
-            updateBoostWeightToPool(_pid);
+            _updateBoostWeight(msg.sender, _pid);
         }
 
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
@@ -159,17 +331,18 @@ contract LpFarm is Ownable {
       @notice claim pending rewards on the pool
       @param _pid pool id 
      */
-    function claim(uint256 _pid) external {
-        PoolInfo storage pool = poolInfo[_pid];
+    function claim(uint256 _pid) external whenNotPaused nonReentrant {
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount > 0, "User didn't deposit in this pool.");
-        uint256 pendingAmount = basePending(_pid, msg.sender);
+        PoolInfo storage pool = poolInfo[_pid];
+        uint256 pendingAmount = getUserBasePending(_pid, msg.sender);
         if (user.boostWeight > 0) {
-            pendingAmount += boostPending(_pid, msg.sender);
+            pendingAmount += getUserBoostPending(_pid, msg.sender);
         }
-        require(pendingAmount > 0, "claim: no rewards to claim");
-        updatePool(_pid);
-        erc20Transfer(msg.sender, pendingAmount);
+        require(pendingAmount > 0, "There is no rewards to claim");
+
+        _updatePool(_pid);
+        transferSIG(msg.sender, pendingAmount);
 
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
         if (user.boostWeight > 0) {
@@ -181,37 +354,34 @@ contract LpFarm is Ownable {
     }
 
     /**
-      @notice update boost weight of the user. 
+      @notice update boost weight of the user to all pool user voted.
       @notice This will be called from xSIGFarm if user activate boost.
      */
     function updateBoostWeight() external {
         for (uint256 i = 0; i < poolInfo.length; i++) {
             UserInfo storage user = userInfo[i][msg.sender];
-            //0. if user has amount
             if (user.amount > 0) {
                 _updateBoostWeight(msg.sender, i);
             }
         }
     }
 
-    function updateBoostWeightToPool(uint256 _pid) public {
-        // user's amount can be zero
-        _updateBoostWeight(msg.sender, _pid);
-    }
-
     /**
-      @notice update pool both with base,boost
+      @notice update pool both with base,boost. anyone can update pool.
+      @param _pid pool id
      */
-    function updatePool(uint256 _pid) public {
+    function updatePool(uint256 _pid) external whenNotPaused nonReentrant {
         _updatePoolWithBaseReward(_pid);
         _updatePoolWithBoostReward(_pid);
     }
 
-    // Update reward variables for all pools. Be careful of gas spending!
-    function massUpdatePools() public {
+    /**
+      @notice Update reward variables for all pools. Be careful of gas spending! anyone can update pool.
+     */
+    function massUpdatePools() external whenNotPaused nonReentrant {
         uint256 length = poolInfo.length;
         for (uint256 pid = 0; pid < length; ++pid) {
-            updatePool(pid);
+            _updatePool(pid);
         }
     }
 
@@ -219,113 +389,36 @@ contract LpFarm is Ownable {
       @notice Fund the farm, anyone call fund sig token.
       @param _amount amount of the token to fund.
      */
-    function fund(uint256 _amount) public {
+    function fund(uint256 _amount) external whenNotPaused nonReentrant {
         require(block.number < endBlock, "fund: too late, the farm is closed");
         require(_amount > 0, "Funding amount should be bigger than 0");
 
-        sig.safeTransferFrom(address(msg.sender), address(this), _amount);
         endBlock += _amount / rewardPerBlock;
+        sig.safeTransferFrom(address(msg.sender), address(this), _amount);
 
         emit Funded(msg.sender, _amount, endBlock);
     }
 
-    /* ========== Restricted Function  ========== */
-    /**
-     @notice sets initialInfo of the contract.
-     */
-    function setInitialInfo(
-        IERC20 _sig,
-        IvxERC20 _vxSIG,
-        uint256 _rewardPerBlock,
-        uint256 _startBlock
-    ) external onlyOwner {
-        require(
-            _startBlock > block.number,
-            "Start block should be in the future"
-        );
-        sig = _sig;
-        rewardPerBlock = _rewardPerBlock;
-        startBlock = _startBlock;
-        endBlock = _startBlock;
-        vxSIG = _vxSIG;
-    }
-
-    /**
-      @notice Add a new lp to the pool. Can only be called by the owner.
-      @notice DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-      @param _allocPoint base reward allocation of the pool
-      @param _boostAllocPoint boost reward allocation of the pool
-     */
-    function addPool(
-        uint256 _allocPoint,
-        uint256 _boostAllocPoint,
-        IERC20 _lpToken
-    ) public onlyOwner {
-        massUpdatePools();
-
-        uint256 lastRewardBlock = block.number > startBlock
-            ? block.number
-            : startBlock;
-        baseTotalAllocPoint += _allocPoint;
-        boostTotalAllocPoint += _boostAllocPoint;
-        totalAllocPoint = baseTotalAllocPoint + boostTotalAllocPoint;
-        poolInfo.push(
-            PoolInfo({
-                lpToken: _lpToken,
-                allocPoint: _allocPoint,
-                lastRewardBlock: lastRewardBlock,
-                accERC20PerShare: 0,
-                boostAllocPoint: _boostAllocPoint,
-                boostLastRewardBlock: lastRewardBlock,
-                boostAccERC20PerShare: 0,
-                totalBoostWeight: 0
-            })
-        );
-
-        emit PoolAdded(address(_lpToken), poolInfo.length - 1);
-    }
-
-    /**
-      @notice Update the given pool's sig allocation point. Can only be called by the owner.
-      @param _pid pool Id
-      @param _allocPoint base reward allocation of the pool
-      @param _boostAllocPoint boost reward allocation of the pool
-     */
-    function setPool(
-        uint256 _pid,
-        uint256 _allocPoint,
-        uint256 _boostAllocPoint
-    ) public onlyOwner {
-        massUpdatePools();
-        baseTotalAllocPoint =
-            baseTotalAllocPoint -
-            poolInfo[_pid].allocPoint +
-            _allocPoint;
-        poolInfo[_pid].allocPoint = _allocPoint;
-
-        boostTotalAllocPoint =
-            boostTotalAllocPoint -
-            poolInfo[_pid].boostAllocPoint +
-            _boostAllocPoint;
-        poolInfo[_pid].boostAllocPoint = _boostAllocPoint;
-
-        totalAllocPoint = baseTotalAllocPoint + boostTotalAllocPoint;
-    }
-
-    /**
-     @notice set rewardPerBlock. It will change endblock as well.
-     */
-    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
-        require(
-            _rewardPerBlock > 0,
-            "reward per block should be bigger than 0"
-        );
-        rewardPerBlock = _rewardPerBlock;
-        uint256 sigBalance = sig.balanceOf(address(this));
-        endBlock = sigBalance / rewardPerBlock;
-    }
-
     /* ========== Internal & Private Function  ========== */
+
+    /**
+      @notice update pool both with base,boost. anyone can update pool.
+      @param _pid pool id
+     */
+    function _updatePool(uint256 _pid) private {
+        _updatePoolWithBaseReward(_pid);
+        _updatePoolWithBoostReward(_pid);
+    }
+
+    /**
+      @notice Update reward variables for all pools. Be careful of gas spending! anyone can update pool.
+     */
+    function _massUpdatePools() private {
+        uint256 length = poolInfo.length;
+        for (uint256 pid = 0; pid < length; ++pid) {
+            _updatePool(pid);
+        }
+    }
 
     /**
       @notice update boost weight of all existing pool
@@ -334,7 +427,7 @@ contract LpFarm is Ownable {
      */
     function _updateBoostWeight(address _addr, uint256 _pid) internal {
         PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][msg.sender];
+        UserInfo storage user = userInfo[_pid][_addr];
 
         _updatePoolWithBoostReward(_pid);
 
@@ -354,9 +447,9 @@ contract LpFarm is Ownable {
       @param _to receiver of the token
       @param _amount amount of the sig token to send 
      */
-    function erc20Transfer(address _to, uint256 _amount) internal {
-        sig.transfer(_to, _amount);
+    function transferSIG(address _to, uint256 _amount) internal {
         paidOut += _amount;
+        sig.safeTransfer(_to, _amount);
     }
 
     /**
@@ -378,9 +471,8 @@ contract LpFarm is Ownable {
 
         uint256 nrOfBlocks = lastBlock - (pool.lastRewardBlock);
 
-        uint256 erc20Reward = (nrOfBlocks *
-            (rewardPerBlock) *
-            (pool.allocPoint)) / (totalAllocPoint);
+        uint256 erc20Reward = (nrOfBlocks * rewardPerBlock * pool.allocPoint) /
+            totalAllocPoint;
 
         pool.accERC20PerShare =
             pool.accERC20PerShare +
@@ -406,15 +498,16 @@ contract LpFarm is Ownable {
             return;
         }
 
-        uint256 nrOfBlocks = lastBlock - (pool.boostLastRewardBlock);
+        uint256 nrOfBlocks = lastBlock - pool.boostLastRewardBlock;
 
         uint256 erc20Reward = (nrOfBlocks *
             rewardPerBlock *
-            pool.boostAllocPoint) / (totalAllocPoint);
+            pool.boostAllocPoint) / totalAllocPoint;
 
         pool.boostAccERC20PerShare =
             pool.boostAccERC20PerShare +
-            ((erc20Reward * 1e36) / totalBoostWeight);
+            (erc20Reward * 1e36) /
+            totalBoostWeight;
         pool.boostLastRewardBlock = block.number;
     }
 
@@ -436,7 +529,7 @@ contract LpFarm is Ownable {
     /**
      @notice total pending amount on protocol.
      */
-    function totalPending() external view returns (uint256) {
+    function totalProtocolPending() external view returns (uint256) {
         if (block.number <= startBlock) {
             return 0;
         }
@@ -453,9 +546,28 @@ contract LpFarm is Ownable {
     }
 
     /**
-     @notice pending amount with base reward.
+     @notice user total pending reward including base and boost reward..
+     @param _pid pool id
+     @param _user user address 
      */
-    function basePending(uint256 _pid, address _user)
+    function getUserTotalPendingReward(uint256 _pid, address _user)
+        external
+        view
+        returns (uint256)
+    {
+        uint256 totalPending = 0;
+        totalPending += getUserBasePending(_pid, _user);
+        totalPending += getUserBoostPending(_pid, _user);
+
+        return totalPending;
+    }
+
+    /**
+     @notice pending amount with base reward.
+     @param _pid pool id
+     @param _user user address 
+     */
+    function getUserBasePending(uint256 _pid, address _user)
         public
         view
         returns (uint256)
@@ -476,8 +588,8 @@ contract LpFarm is Ownable {
         ) {
             uint256 nrOfBlocks = lastBlock - pool.lastRewardBlock;
             uint256 erc20Reward = (nrOfBlocks *
-                (rewardPerBlock) *
-                (pool.allocPoint)) / (totalAllocPoint);
+                rewardPerBlock *
+                pool.allocPoint) / totalAllocPoint;
             accERC20PerShare =
                 accERC20PerShare +
                 ((erc20Reward * 1e36) / lpSupply);
@@ -489,7 +601,7 @@ contract LpFarm is Ownable {
     /**
      @notice pending amount with boost reward.
      */
-    function boostPending(uint256 _pid, address _user)
+    function getUserBoostPending(uint256 _pid, address _user)
         public
         view
         returns (uint256)
@@ -509,7 +621,7 @@ contract LpFarm is Ownable {
             block.number > pool.boostLastRewardBlock &&
             totalBoostWeight != 0
         ) {
-            uint256 nrOfBlocks = lastBlock - (pool.boostLastRewardBlock);
+            uint256 nrOfBlocks = lastBlock - pool.boostLastRewardBlock;
 
             uint256 erc20Reward = (nrOfBlocks *
                 rewardPerBlock *

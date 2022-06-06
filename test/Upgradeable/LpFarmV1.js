@@ -2,12 +2,16 @@ const {
     makeErc20Token,
     makeVxSIGToken,
     makeXSIGFarm,
-    makeLpFarm,
+    makeLpFarmV1,
     xSIGFarm,
     vxSIGToken,
     MockERC20,
-    LpFarm,
-} = require('./Utils/Sigma');
+    LpFarmV1,
+    makeUUPSProxy,
+    UUPSProxy,
+    makeLpFarmV2_Test,
+    LpFarmV2_Test
+} = require('../Utils/Sigma');
 
 const {
     expectAlmostEqualMantissa,
@@ -17,7 +21,7 @@ const {
     BN,
     expectEqual,
     time
-} = require('./Utils/JS');
+} = require('../Utils/JS');
 const { MAX_INT256 } = require('@openzeppelin/test-helpers/src/constants');
 
 /**
@@ -43,7 +47,7 @@ const { MAX_INT256 } = require('@openzeppelin/test-helpers/src/constants');
 // --network :  You should run this code below in local environment since expectEvent doesn't work on Klaytn testnet for now.
 
 
-contract('LpFarm', function (accounts) {
+contract('LpFarmV1', function (accounts) {
     let root = accounts[0];
     let userA = accounts[1];
     let userB = accounts[2];
@@ -51,7 +55,11 @@ contract('LpFarm', function (accounts) {
 
     let vxSIGToken;
     let sigToken;
+
+    let lpFarmImpl;
+    let lpFarmProxy;
     let lpFarm;
+
     let lpTokenA;
     let lpTokenB;
 
@@ -78,7 +86,13 @@ contract('LpFarm', function (accounts) {
 
             //Deploy from the start.
             vxSIGToken = await makeVxSIGToken();
-            lpFarm = await makeLpFarm();
+
+            lpFarmImpl = await makeLpFarmV1();
+            lpFarmProxy = await makeUUPSProxy(lpFarmImpl.address, "0x")
+            lpFarm = await LpFarmV1.at(lpFarmProxy.address);
+
+            await lpFarm.initialize({ from: root });
+
             lpTokenA = await makeErc20Token();
             lpTokenB = await makeErc20Token();
             sigToken = await makeErc20Token();
@@ -283,7 +297,7 @@ contract('LpFarm', function (accounts) {
             newPoolInfo = await lpFarm.poolInfo(new BN(0));
             newAccERC20PerShare = newPoolInfo[3];
             console.log("newAccERC20PerShare : ", newAccERC20PerShare.toString())
-            console.log("userA base pending  : ", (await lpFarm.basePending(new BN(0), userA)).toString())
+            console.log("userA base pending  : ", (await lpFarm.getUserBasePending(new BN(0), userA)).toString())
 
             // expectEqual(newAccERC20PerShare, new BN(0));
 
@@ -319,7 +333,7 @@ contract('LpFarm', function (accounts) {
             newPoolInfo = await lpFarm.poolInfo(new BN(0));
             newAccERC20PerShare = newPoolInfo[3];
             console.log("newAccERC20PerShare : ", newAccERC20PerShare.toString())
-            console.log("userA base pending  : ", (await lpFarm.basePending(new BN(0), userA)).toString())
+            console.log("userA base pending  : ", (await lpFarm.getUserBasePending(new BN(0), userA)).toString())
 
             // 2. Pool B 
             // User C Deposit Token & Apporve lpTokenB to lpFarm contract
@@ -437,8 +451,8 @@ contract('LpFarm', function (accounts) {
 
             // 1-2) User A Claim for the SIG 
             evmMine();
-            let basePending = await lpFarm.basePending(new BN(0), userA)
-            let boostPending = await lpFarm.boostPending(new BN(0), userA)
+            let basePending = await lpFarm.getUserBasePending(new BN(0), userA)
+            let boostPending = await lpFarm.getUserBoostPending(new BN(0), userA)
 
             console.log('user A base pending : ', basePending.toString(), '  boost pending : ', boostPending.toString())
 
@@ -452,8 +466,8 @@ contract('LpFarm', function (accounts) {
                 amount: afterBalance.sub(beforeBalance)
             })
 
-            basePending = await lpFarm.basePending(new BN(0), userA)
-            boostPending = await lpFarm.boostPending(new BN(0), userA)
+            basePending = await lpFarm.getUserBasePending(new BN(0), userA)
+            boostPending = await lpFarm.getUserBoostPending(new BN(0), userA)
 
             console.log('user A base pending : ', basePending.toString(), '  boost pending : ', boostPending.toString())
 
@@ -464,16 +478,16 @@ contract('LpFarm', function (accounts) {
             // This for loops are to check if it has right amount of reward. 
             for (let ia = 0; ia < 10; ia++) {
                 evmMine();
-                let basePending = await lpFarm.basePending(new BN(0), userA)
-                let boostPending = await lpFarm.boostPending(new BN(0), userA)
+                let basePending = await lpFarm.getUserBasePending(new BN(0), userA)
+                let boostPending = await lpFarm.getUserBoostPending(new BN(0), userA)
 
                 console.log('user A base pending : ', basePending.toString(), '  boost pending : ', boostPending.toString())
             }
 
             for (let ia = 0; ia < 10; ia++) {
                 evmMine();
-                let userBbasePending = await lpFarm.basePending(new BN(0), userB)
-                let userBBoostPending = await lpFarm.boostPending(new BN(0), userB)
+                let userBbasePending = await lpFarm.getUserBasePending(new BN(0), userB)
+                let userBBoostPending = await lpFarm.getUserBoostPending(new BN(0), userB)
                 console.log('user Bbase pending : ', userBbasePending.toString(), '  boost pending : ', userBBoostPending.toString())
             }
 
@@ -537,12 +551,35 @@ contract('LpFarm', function (accounts) {
             let afteruserBPoolABoostWeight = (await lpFarm.userInfo(new BN(0), userB))[3]
             let afterpoolTotalBoostWeight_2 = (await lpFarm.poolInfo(new BN(0)))[7]
             console.log('after userBPoolADepositedAmount : ', afteruserBPoolADepositedAmount.toString())
-            console.log(' after userBSigBalance : ', afteruserBSigBalance.toString())
+            console.log('after userBSigBalance : ', afteruserBSigBalance.toString())
             console.log('after userBPoolABoostWeight : ', afteruserBPoolABoostWeight.toString())
             console.log('after poolTotalBoostWeight_2 : ', afterpoolTotalBoostWeight_2.toString())
 
             expectEqual(afteruserBPoolADepositedAmount, userBPoolADepositedAmount.sub(bnMantissa(10)));
             expectEqual(afterpoolTotalBoostWeight_2, afteruserBPoolABoostWeight);
+        })
+
+        it('Test : 7. Upgradeable smart contract upgrae test.', async () => {
+
+            // Test Contract for testing upgradeability.
+            // [Changed feature]
+            // 1. You can't deposit less than 1 ether.
+            // 2. New View function user boost weight.
+
+            let LpFarmV2_TestImpl = await makeLpFarmV2_Test()
+            await lpFarm.upgradeTo(LpFarmV2_TestImpl.address)
+            lpFarm = await LpFarmV2_Test.at(lpFarmProxy.address)
+
+            // try to deposit less than 1 ether
+            await expectRevert(lpFarm.deposit(new BN(0), new BN(10000), { from: userA }), "User should deposit more than 1 token.")
+
+            // deposit 1 ether should be ok
+            await lpFarm.deposit(new BN(0), bnMantissa(1), { from: userA })
+
+
+            //2. try new view function
+            console.log('user A deposit amount of LP 0', (await lpFarm.userBoostWeight(new BN(0), userA)).toString())
+
         })
     })
 });

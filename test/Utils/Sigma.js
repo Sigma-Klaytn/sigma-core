@@ -35,6 +35,8 @@ const UpgradeableLockdrop = artifacts.require('UpgradeableLockdropV1')
 const UpgradeableLockdropV2 = artifacts.require('UpgradeableLockdropV2')
 const UpgradeableTokenSaleV1 = artifacts.require('UpgradeableTokenSaleV1')
 const UpgradeableTokenSaleV2 = artifacts.require('UpgradeableTokenSaleV2')
+const LpFarmV1 = artifacts.require('LpFarmV1')
+const LpFarmV2_Test = artifacts.require('LpFarmV2_Test');
 
 
 async function makeErc20Token(opts = {}) {
@@ -103,8 +105,6 @@ async function makeLockdrop(opts = {}) {
     return await Lockdrop.new();
 }
 
-
-
 async function makeSigKSPFarm(opts = {}) {
     return await SigKSPFarm.new();
 }
@@ -131,6 +131,15 @@ async function makeUpgradeableTokenSaleV1(opts = {}) {
 async function makeUpgradeableTokenSaleV2(opts = {}) {
     return await UpgradeableTokenSaleV2.new()
 }
+
+async function makeLpFarmV1(opts = {}) {
+    return await LpFarmV1.new()
+}
+async function makeLpFarmV2_Test(opts = {}) {
+    return await LpFarmV2_Test.new()
+}
+
+
 module.exports = {
     MockERC20,
     DepositingVault,
@@ -155,7 +164,8 @@ module.exports = {
     UpgradeableLockdropV2,
     UpgradeableTokenSaleV1,
     UpgradeableTokenSaleV2,
-
+    LpFarmV1,
+    LpFarmV2_Test,
     makeErc20Token,
     makeDepositingVault,
     makeVault,
@@ -178,5 +188,7 @@ module.exports = {
     makeUpgradeableLockdrop,
     makeUpgradeableLockdropV2,
     makeUpgradeableTokenSaleV1,
-    makeUpgradeableTokenSaleV2
+    makeUpgradeableTokenSaleV2,
+    makeLpFarmV1,
+    makeLpFarmV2_Test
 };
