@@ -37,6 +37,9 @@ const UpgradeableTokenSaleV1 = artifacts.require('UpgradeableTokenSaleV1')
 const UpgradeableTokenSaleV2 = artifacts.require('UpgradeableTokenSaleV2')
 const LpFarmV1 = artifacts.require('LpFarmV1')
 const LpFarmV2_Test = artifacts.require('LpFarmV2_Test');
+const SigFarmV1 = artifacts.require('SigFarmV1');
+const SigFarmV2_Test = artifacts.require('SigFarmV2_Test');
+
 
 
 async function makeErc20Token(opts = {}) {
@@ -139,6 +142,14 @@ async function makeLpFarmV2_Test(opts = {}) {
     return await LpFarmV2_Test.new()
 }
 
+async function makeSigFarmV1(opts = {}) {
+    return await SigFarmV1.new()
+}
+async function makeSigFarmV2_Test(opts = {}) {
+    return await SigFarmV2_Test.new()
+}
+
+
 
 module.exports = {
     MockERC20,
@@ -166,6 +177,8 @@ module.exports = {
     UpgradeableTokenSaleV2,
     LpFarmV1,
     LpFarmV2_Test,
+    SigFarmV1,
+    SigFarmV2_Test,
     makeErc20Token,
     makeDepositingVault,
     makeVault,
@@ -190,5 +203,7 @@ module.exports = {
     makeUpgradeableTokenSaleV1,
     makeUpgradeableTokenSaleV2,
     makeLpFarmV1,
-    makeLpFarmV2_Test
+    makeLpFarmV2_Test,
+    makeSigFarmV1,
+    makeSigFarmV2_Test
 };

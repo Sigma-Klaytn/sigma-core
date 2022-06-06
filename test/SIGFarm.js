@@ -77,7 +77,7 @@ contract('SIGFarm', function (accounts) {
             await expectRevert(SIGFarm.setInitialInfo(SIGToken.address, HOUR, xSIGToken.address, { from: userA }), 'Ownable: caller is not the owner')
 
             //2. Check if Initial Info has been set. 
-            await SIGFarm.setInitialInfo(SIGToken.address, HOUR, xSIGToken.address,)
+            await SIGFarm.setInitialInfo(SIGToken.address, HOUR, xSIGToken.address, { from: root })
             expectEqual(await SIGFarm.lockingPeriod(), HOUR);
             expectEqual(await SIGFarm.SIG(), SIGToken.address);
         });

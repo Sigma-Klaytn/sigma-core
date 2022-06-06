@@ -15,8 +15,6 @@ contract xSIGToken is IxSIGToken, Ownable {
     mapping(address => mapping(address => uint256)) public override allowance;
     mapping(address => bool) public operators;
 
-    constructor() {}
-
     /**
      @notice Approve contracts to mint and renounce ownership
     @dev In production the only minters should be `SIGFarm`
