@@ -1468,7 +1468,7 @@ contract SigKSPStakingV1 is
         onlyRewardsDistribution
         updateReward(address(0))
     {
-        for (uint256 i; i < rewardTokens.length; i++) {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             if (token != address(0)) {
                 Reward storage r = rewardData[token];
@@ -1537,7 +1537,7 @@ contract SigKSPStakingV1 is
         whenNotPaused
         updateReward(msg.sender)
     {
-        for (uint256 i; i < rewardTokens.length; i++) {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             Reward storage r = rewardData[token];
             if (token != address(0)) {
@@ -1566,7 +1566,7 @@ contract SigKSPStakingV1 is
 
     /* ========== Internal & Private Function  ========== */
     function _claimReward() private updateReward(msg.sender) {
-        for (uint256 i; i < rewardTokens.length; i++) {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             if (token != address(0)) {
                 Reward storage r = rewardData[token];
@@ -1666,7 +1666,7 @@ contract SigKSPStakingV1 is
         _;
     }
     modifier updateReward(address account) {
-        for (uint256 i; i < rewardTokens.length; i++) {
+        for (uint256 i = 0; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             rewardData[token].rewardPerTokenStored = rewardPerToken(token);
             rewardData[token].lastUpdateTime = lastTimeRewardApplicable(token);
