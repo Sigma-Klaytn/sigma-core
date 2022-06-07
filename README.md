@@ -24,8 +24,9 @@ At sigma-core/contracts/Upgradeable/
 
 ## Before the audit, please be noted
 
--   All contracts above are UUPSUpgradeableSmartContract.
+-   All auditing contracts above are UUPSUpgradeableSmartContract.
 -   Test codes are provided for all auditing contract except KlayswapEscrow.sol (It's too dependent on Klayswap Contract. Only Mainnet test has been done).
+-   All auditing contracts above are conducted static security analyze using slither. You can find a result at **./slither-analyze/**.
 
 ## Sigma
 
