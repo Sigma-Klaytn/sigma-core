@@ -1,11 +1,15 @@
 const {
     makeVxSIGToken,
-    makeSigmaVoter,
+    makeSigmaVoterV1,
+    makeSigmaVoterV2_Test,
+    UUPSProxy,
     makeErc20Token,
     vxSIGToken,
-    SigmaVoter,
-    MockERC20
-} = require('./Utils/Sigma');
+    SigmaVoterV1,
+    SigmaVoterV2_Test,
+    MockERC20,
+    makeUUPSProxy
+} = require('../Utils/Sigma');
 
 const {
     expectAlmostEqualMantissa,
@@ -15,9 +19,8 @@ const {
     BN,
     expectEqual,
     time
-} = require('./Utils/JS');
+} = require('../Utils/JS');
 const { MAX_INT256 } = require('@openzeppelin/test-helpers/src/constants');
-const { address } = require('./Utils/Ethereum');
 
 /**
  * [Check Point]
@@ -42,7 +45,7 @@ const { address } = require('./Utils/Ethereum');
 // --network :  You should run this code below in local environment since expectEvent doesn't work on Klaytn testnet for now.
 
 
-contract('SigmaVoterV1', function (accounts) {
+contract('SigmaVoter', function (accounts) {
     let root = accounts[0];
     let userA = accounts[1];
     let userB = accounts[2];
@@ -51,7 +54,11 @@ contract('SigmaVoterV1', function (accounts) {
 
 
     let vxSIGToken;
+
+    let sigmaVoterImpl;
+    let sigmaVoterProxy;
     let sigmaVoter;
+
     let lpPools = new Array(16);
 
     console.log(
@@ -70,7 +77,12 @@ contract('SigmaVoterV1', function (accounts) {
 
             //Deploy from the start.
             vxSIGToken = await makeVxSIGToken();
-            sigmaVoter = await makeSigmaVoter();
+
+            sigmaVoterImpl = await makeSigmaVoterV1();
+            sigmaVoterProxy = await makeUUPSProxy(sigmaVoterImpl.address, "0x")
+            sigmaVoter = await SigmaVoterV1.at(sigmaVoterProxy.address);
+
+            await sigmaVoter.initialize()
 
             for (let i = 0; i < 15; i++) {
                 lpPools[i] = (await makeErc20Token()).address;
@@ -88,15 +100,15 @@ contract('SigmaVoterV1', function (accounts) {
 
             let topYieldPools = new Array(lpPools[12], lpPools[13], lpPools[14])
             // 1. Check onlyOwner Function 
-            await expectRevert(sigmaVoter.setInitialInfo(lpPools, topYieldPools, vxSIGToken.address, { from: userA }), 'Ownable: caller is not the owner')
+            await expectRevert(sigmaVoter.setInitialInfo(lpPools, topYieldPools, vxSIGToken.address, new BN(10), { from: userA }), 'Ownable: caller is not the owner')
 
             // 2. Check Reverts
-            await expectRevert(sigmaVoter.setInitialInfo(lpPools, new Array(lpPools[12]), vxSIGToken.address, { from: root }), 'Top yield pool length doesn\'t match with TOP_YIELD_POOL_COUNT')
-            await expectRevert(sigmaVoter.setInitialInfo(lpPools, new Array(lpPools[11], lpPools[12], lpPools[13], lpPools[14]), vxSIGToken.address, { from: root }), 'Top yield pool length doesn\'t match with TOP_YIELD_POOL_COUNT')
+            await expectRevert(sigmaVoter.setInitialInfo(lpPools, new Array(lpPools[12]), vxSIGToken.address, new BN(10), { from: root }), 'Top yield pool length doesn\'t match with TOP_YIELD_POOL_COUNT')
+            await expectRevert(sigmaVoter.setInitialInfo(lpPools, new Array(lpPools[11], lpPools[12], lpPools[13], lpPools[14]), vxSIGToken.address, new BN(10), { from: root }), 'Top yield pool length doesn\'t match with TOP_YIELD_POOL_COUNT')
 
 
             // 2. Check if Initial Info has been set. 
-            await sigmaVoter.setInitialInfo(lpPools, topYieldPools, vxSIGToken.address, { from: root })
+            await sigmaVoter.setInitialInfo(lpPools, topYieldPools, vxSIGToken.address, new BN(10), { from: root })
 
             expectEqual(await sigmaVoter.getPoolCount(), new BN(15));
             expectEqual(await sigmaVoter.isPool(lpPools[0]), true)
@@ -439,6 +451,17 @@ contract('SigmaVoterV1', function (accounts) {
             for (let i = 0; i < addresses2.length; i++) {
                 console.log('index : ', i, ' address : ', addresses2[i], ' ====> vote : ', weights2[i].toString())
             }
+
+        })
+
+        it('Test : 5. Upgrade to new contract.', async () => {
+            let SigmaVoterImpl2 = await makeSigmaVoterV2_Test()
+            await sigmaVoter.upgradeTo(SigmaVoterImpl2.address);
+            sigmaVoter = await SigmaVoterV2_Test.at(sigmaVoterProxy.address)
+
+            await expectRevert(sigmaVoter.addAllPoolVote(new Array(lpPools[6], lpPools[7], lpPools[8], lpPools[10]), new Array(new BN(10), new BN(10), new BN(10), new BN(10)), { from: userA }), "Pool length should be smaller than 4.")
+
+            await sigmaVoter.addAllPoolVote(new Array(lpPools[7], lpPools[8], lpPools[10]), new Array(new BN(10), new BN(10), new BN(10)), { from: userA })
 
         })
     })
