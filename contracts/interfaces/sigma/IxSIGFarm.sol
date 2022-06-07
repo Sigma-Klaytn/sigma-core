@@ -4,7 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 /**
- * @dev Interface of the VePtp
+ * @dev Interface of the IxSIG
  */
 interface IxSIGFarm {
     function isUser(address _addr) external view returns (bool);

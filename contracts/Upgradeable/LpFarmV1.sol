@@ -9,6 +9,7 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
 import "../interfaces/sigma/IvxERC20.sol";
+import "../interfaces/sigma/ILpFarm.sol";
 
 // Farm distributes the sig rewards based on staked LP to each user.
 //
@@ -21,7 +22,8 @@ contract LpFarmV1 is
     UUPSUpgradeable,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable,
-    PausableUpgradeable
+    PausableUpgradeable,
+    ILpFarm
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 

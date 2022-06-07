@@ -4,13 +4,14 @@ pragma solidity 0.8.9;
 import "./dependencies/SafeERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/sigma/IvxERC20.sol";
+import "./interfaces/sigma/ISigKSPFarm.sol";
 
 // Farm distributes the sig rewards based on staked LP to each user.
 //
 // Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
-contract SigKSPFarm is Ownable {
+contract SigKSPFarm is Ownable, ISigKSPFarm {
     using SafeERC20 for IERC20;
 
     IvxERC20 public vxSIG;
@@ -158,7 +159,7 @@ contract SigKSPFarm is Ownable {
       @notice update boost weight of the user. 
       @notice This will be called from xSIGFarm if user activate/deactivate boost.
      */
-    function updateBoostWeight() external {
+    function updateBoostWeight() external override {
         UserInfo memory user = userInfo[msg.sender];
         //0. if user has amount
         if (user.amount > 0) {

@@ -1,90 +1,9 @@
+// File: @openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol
+
 // SPDX-License-Identifier: MIT
+// OpenZeppelin Contracts (last updated v4.5.0) (utils/Address.sol)
+
 pragma solidity ^0.8.0;
-
-/**
- * @dev Interface of the ERC20 standard as defined in the EIP.
- */
-interface IERC20Upgradeable {
-    /**
-     * @dev Emitted when `value` tokens are moved from one account (`from`) to
-     * another (`to`).
-     *
-     * Note that `value` may be zero.
-     */
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    /**
-     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-     * a call to {approve}. `value` is the new allowance.
-     */
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 value
-    );
-
-    /**
-     * @dev Returns the amount of tokens in existence.
-     */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @dev Returns the amount of tokens owned by `account`.
-     */
-    function balanceOf(address account) external view returns (uint256);
-
-    /**
-     * @dev Moves `amount` tokens from the caller's account to `to`.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transfer(address to, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Returns the remaining number of tokens that `spender` will be
-     * allowed to spend on behalf of `owner` through {transferFrom}. This is
-     * zero by default.
-     *
-     * This value changes when {approve} or {transferFrom} are called.
-     */
-    function allowance(address owner, address spender)
-        external
-        view
-        returns (uint256);
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * IMPORTANT: Beware that changing an allowance with this method brings the risk
-     * that someone may use both the old and the new allowance by unfortunate
-     * transaction ordering. One possible solution to mitigate this race
-     * condition is to first reduce the spender's allowance to 0 and set the
-     * desired value afterwards:
-     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-     *
-     * Emits an {Approval} event.
-     */
-    function approve(address spender, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Moves `amount` tokens from `from` to `to` using the
-     * allowance mechanism. `amount` is then deducted from the caller's
-     * allowance.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
-}
 
 /**
  * @dev Collection of functions related to the address type
@@ -307,132 +226,6 @@ library AddressUpgradeable {
 }
 
 /**
- * @title SafeERC20
- * @dev Wrappers around ERC20 operations that throw on failure (when the token
- * contract returns false). Tokens that return no value (and instead revert or
- * throw on failure) are also supported, non-reverting calls are assumed to be
- * successful.
- * To use this library you can add a `using SafeERC20 for IERC20;` statement to your contract,
- * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
- */
-library SafeERC20Upgradeable {
-    using AddressUpgradeable for address;
-
-    function safeTransfer(
-        IERC20Upgradeable token,
-        address to,
-        uint256 value
-    ) internal {
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.transfer.selector, to, value)
-        );
-    }
-
-    function safeTransferFrom(
-        IERC20Upgradeable token,
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.transferFrom.selector, from, to, value)
-        );
-    }
-
-    /**
-     * @dev Deprecated. This function has issues similar to the ones found in
-     * {IERC20-approve}, and its usage is discouraged.
-     *
-     * Whenever possible, use {safeIncreaseAllowance} and
-     * {safeDecreaseAllowance} instead.
-     */
-    function safeApprove(
-        IERC20Upgradeable token,
-        address spender,
-        uint256 value
-    ) internal {
-        // safeApprove should only be called when setting an initial allowance,
-        // or when resetting it to zero. To increase and decrease it, use
-        // 'safeIncreaseAllowance' and 'safeDecreaseAllowance'
-        require(
-            (value == 0) || (token.allowance(address(this), spender) == 0),
-            "SafeERC20: approve from non-zero to non-zero allowance"
-        );
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.approve.selector, spender, value)
-        );
-    }
-
-    function safeIncreaseAllowance(
-        IERC20Upgradeable token,
-        address spender,
-        uint256 value
-    ) internal {
-        uint256 newAllowance = token.allowance(address(this), spender) + value;
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(
-                token.approve.selector,
-                spender,
-                newAllowance
-            )
-        );
-    }
-
-    function safeDecreaseAllowance(
-        IERC20Upgradeable token,
-        address spender,
-        uint256 value
-    ) internal {
-        unchecked {
-            uint256 oldAllowance = token.allowance(address(this), spender);
-            require(
-                oldAllowance >= value,
-                "SafeERC20: decreased allowance below zero"
-            );
-            uint256 newAllowance = oldAllowance - value;
-            _callOptionalReturn(
-                token,
-                abi.encodeWithSelector(
-                    token.approve.selector,
-                    spender,
-                    newAllowance
-                )
-            );
-        }
-    }
-
-    /**
-     * @dev Imitates a Solidity high-level call (i.e. a regular function call to a contract), relaxing the requirement
-     * on the return value: the return value is optional (but if data is returned, it must not be false).
-     * @param token The token targeted by the call.
-     * @param data The call data (encoded using abi.encode or one of its variants).
-     */
-    function _callOptionalReturn(IERC20Upgradeable token, bytes memory data)
-        private
-    {
-        // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
-        // we're implementing it ourselves. We use {Address.functionCall} to perform this call, which verifies that
-        // the target address contains contract code and also asserts for success in the low-level call.
-
-        bytes memory returndata = address(token).functionCall(
-            data,
-            "SafeERC20: low-level call failed"
-        );
-        if (returndata.length > 0) {
-            // Return data is optional
-            require(
-                abi.decode(returndata, (bool)),
-                "SafeERC20: ERC20 operation did not succeed"
-            );
-        }
-    }
-}
-
-/**
  * @dev This is a base contract to aid in writing upgradeable contracts, or any kind of contract that will be deployed
  * behind a proxy. Since proxied contracts do not make use of a constructor, it's common to move constructor logic to an
  * external initializer function, usually called `initialize`. It then becomes necessary to protect this initializer
@@ -578,6 +371,8 @@ abstract contract Initializable {
     }
 }
 
+// File: @openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol
+
 /**
  * @dev Provides information about the current execution context, including the
  * sender of the transaction and its data. While these are generally available
@@ -608,6 +403,8 @@ abstract contract ContextUpgradeable is Initializable {
      */
     uint256[50] private __gap;
 }
+
+// File: @openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol
 
 /**
  * @dev Contract module which provides a basic access control mechanism, where
@@ -694,6 +491,217 @@ abstract contract OwnableUpgradeable is Initializable, ContextUpgradeable {
      * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
      */
     uint256[49] private __gap;
+}
+
+/**
+ * @dev Interface of the ERC20 standard as defined in the EIP.
+ */
+interface IERC20Upgradeable {
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+
+    /**
+     * @dev Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `to`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address to, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `from` to `to` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
+}
+
+/**
+ * @title SafeERC20
+ * @dev Wrappers around ERC20 operations that throw on failure (when the token
+ * contract returns false). Tokens that return no value (and instead revert or
+ * throw on failure) are also supported, non-reverting calls are assumed to be
+ * successful.
+ * To use this library you can add a `using SafeERC20 for IERC20;` statement to your contract,
+ * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
+ */
+library SafeERC20Upgradeable {
+    using AddressUpgradeable for address;
+
+    function safeTransfer(
+        IERC20Upgradeable token,
+        address to,
+        uint256 value
+    ) internal {
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(token.transfer.selector, to, value)
+        );
+    }
+
+    function safeTransferFrom(
+        IERC20Upgradeable token,
+        address from,
+        address to,
+        uint256 value
+    ) internal {
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(token.transferFrom.selector, from, to, value)
+        );
+    }
+
+    /**
+     * @dev Deprecated. This function has issues similar to the ones found in
+     * {IERC20-approve}, and its usage is discouraged.
+     *
+     * Whenever possible, use {safeIncreaseAllowance} and
+     * {safeDecreaseAllowance} instead.
+     */
+    function safeApprove(
+        IERC20Upgradeable token,
+        address spender,
+        uint256 value
+    ) internal {
+        // safeApprove should only be called when setting an initial allowance,
+        // or when resetting it to zero. To increase and decrease it, use
+        // 'safeIncreaseAllowance' and 'safeDecreaseAllowance'
+        require(
+            (value == 0) || (token.allowance(address(this), spender) == 0),
+            "SafeERC20: approve from non-zero to non-zero allowance"
+        );
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(token.approve.selector, spender, value)
+        );
+    }
+
+    function safeIncreaseAllowance(
+        IERC20Upgradeable token,
+        address spender,
+        uint256 value
+    ) internal {
+        uint256 newAllowance = token.allowance(address(this), spender) + value;
+        _callOptionalReturn(
+            token,
+            abi.encodeWithSelector(
+                token.approve.selector,
+                spender,
+                newAllowance
+            )
+        );
+    }
+
+    function safeDecreaseAllowance(
+        IERC20Upgradeable token,
+        address spender,
+        uint256 value
+    ) internal {
+        unchecked {
+            uint256 oldAllowance = token.allowance(address(this), spender);
+            require(
+                oldAllowance >= value,
+                "SafeERC20: decreased allowance below zero"
+            );
+            uint256 newAllowance = oldAllowance - value;
+            _callOptionalReturn(
+                token,
+                abi.encodeWithSelector(
+                    token.approve.selector,
+                    spender,
+                    newAllowance
+                )
+            );
+        }
+    }
+
+    /**
+     * @dev Imitates a Solidity high-level call (i.e. a regular function call to a contract), relaxing the requirement
+     * on the return value: the return value is optional (but if data is returned, it must not be false).
+     * @param token The token targeted by the call.
+     * @param data The call data (encoded using abi.encode or one of its variants).
+     */
+    function _callOptionalReturn(IERC20Upgradeable token, bytes memory data)
+        private
+    {
+        // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
+        // we're implementing it ourselves. We use {Address.functionCall} to perform this call, which verifies that
+        // the target address contains contract code and also asserts for success in the low-level call.
+
+        bytes memory returndata = address(token).functionCall(
+            data,
+            "SafeERC20: low-level call failed"
+        );
+        if (returndata.length > 0) {
+            // Return data is optional
+            require(
+                abi.decode(returndata, (bool)),
+                "SafeERC20: ERC20 operation did not succeed"
+            );
+        }
+    }
 }
 
 /**
@@ -1348,6 +1356,52 @@ abstract contract PausableUpgradeable is Initializable, ContextUpgradeable {
     uint256[49] private __gap;
 }
 
+interface IWhitelist {
+    function approveWallet(address _wallet) external;
+
+    function revokeWallet(address _wallet) external;
+
+    function check(address _wallet) external view returns (bool);
+}
+
+/**
+ * @title ERC721 token receiver interface
+ * @dev Interface for any contract that wants to support safeTransfers
+ * from ERC721 asset contracts.
+ */
+interface IERC721Receiver {
+    /**
+     * @dev Whenever an {IERC721} `tokenId` token is transferred to this contract via {IERC721-safeTransferFrom}
+     * by `operator` from `from`, this function is called.
+     *
+     * It must return its Solidity selector to confirm the token transfer.
+     * If any other value is returned or the interface is not implemented by the recipient, the transfer will be reverted.
+     *
+     * The selector can be obtained in Solidity with `IERC721.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
+/**
+ * @dev Interface of the IxSIG
+ */
+interface IxSIGFarm {
+    function isUser(address _addr) external view returns (bool);
+
+    function stake(uint256 _amount) external;
+
+    function unstake(uint256 _amount) external;
+
+    function claim() external;
+
+    function getStakedXSIG(address _addr) external view returns (uint256);
+}
+
 interface IvxERC20 {
     function totalSupply() external view returns (uint256);
 
@@ -1358,84 +1412,146 @@ interface IvxERC20 {
     function burn(address account, uint256 amount) external;
 }
 
-// Farm distributes the sig rewards based on staked LP to each user.
-//
-// Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
-// Modified by LTO Network to work for non-mintable sig.
-// Modified by Sigma to work for boosted rewards with vxSIG.
-/// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
-contract LpFarmV1 is
+interface ISigmaVoter {
+    function getCurrentVotes()
+        external
+        view
+        returns (
+            uint256 weightsTotal,
+            address[] memory pools,
+            uint256[] memory weights
+        );
+
+    function getUserVotesCount(address _user) external view returns (uint256);
+
+    function deleteAllPoolVote() external;
+}
+
+interface ISigKSPFarm {
+    function updateBoostWeight() external;
+}
+
+interface ILpFarm {
+    function updateBoostWeight() external;
+}
+
+// File: contracts/libraries/DSMath.sol
+
+/// math.sol -- mixin for inline numerical wizardry
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+library DSMath {
+    uint256 public constant WAD = 10**18;
+    uint256 public constant RAY = 10**27;
+
+    //rounds to zero if x*y < WAD / 2
+    function wmul(uint256 x, uint256 y) internal pure returns (uint256) {
+        return ((x * y) + (WAD / 2)) / WAD;
+    }
+
+    //rounds to zero if x*y < WAD / 2
+    function wdiv(uint256 x, uint256 y) internal pure returns (uint256) {
+        return ((x * WAD) + (y / 2)) / y;
+    }
+
+    function reciprocal(uint256 x) internal pure returns (uint256) {
+        return wdiv(WAD, x);
+    }
+
+    // This famous algorithm is called "exponentiation by squaring"
+    // and calculates x^n with x as fixed-point and n as regular unsigned.
+    //
+    // It's O(log n), instead of O(n) for naive repeated multiplication.
+    //
+    // These facts are why it works:
+    //
+    //  If n is even, then x^n = (x^2)^(n/2).
+    //  If n is odd,  then x^n = x * x^(n-1),
+    //   and applying the equation for even x gives
+    //    x^n = x * (x^2)^((n-1) / 2).
+    //
+    //  Also, EVM division is flooring and
+    //    floor[(n-1) / 2] = floor[n / 2].
+    //
+    function rpow(uint256 x, uint256 n) internal pure returns (uint256 z) {
+        z = n % 2 != 0 ? x : RAY;
+
+        for (n /= 2; n != 0; n /= 2) {
+            x = rmul(x, x);
+
+            if (n % 2 != 0) {
+                z = rmul(z, x);
+            }
+        }
+    }
+
+    //rounds to zero if x*y < WAD / 2
+    function rmul(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = ((x * y) + (RAY / 2)) / RAY;
+    }
+}
+
+contract xSigFarmV1 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
     ReentrancyGuardUpgradeable,
-    PausableUpgradeable
+    PausableUpgradeable,
+    IxSIGFarm
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
-    // Info of each user.
-    struct UserInfo {
-        uint256 amount; // How many LP tokens the user has provided.
-        uint256 rewardDebt; // Reward debt.
-        uint256 boostRewardDebt; // Boosted Reward debt
-        uint256 boostWeight;
-    }
+    /* ========== STATE VARIABLES ========== */
 
-    // Info of each pool.
-    struct PoolInfo {
-        IERC20Upgradeable lpToken; // Address of LP token contract.
-        uint256 allocPoint; // How many allocation points assigned to this base pool. ERC20s to distribute per block.
-        uint256 lastRewardBlock; // Last block number that ERC20s distribution occurs.
-        uint256 accERC20PerShare; // Accumulated ERC20s per share, times 1e36.
-        uint256 boostAllocPoint; // How many allocation points assigned to this boost pool. ERC20s to distribute per block.
-        uint256 boostLastRewardBlock; // Last block number that ERC20s distribution occurs.
-        uint256 boostAccERC20PerShare; // Accumulated ERC20s per share, times 1e36.
-        uint256 totalBoostWeight; // Total boost weight of the pool
-    }
-
-    /// @notice Address of the vxSIG Token contract.
+    IERC20Upgradeable public xSIG;
     IvxERC20 public vxSIG;
-    /// @notice Address of the sig Token contract.
-    IERC20Upgradeable public sig;
-    /// @notice The total amount of SIG that's paid out as base reward.
-    uint256 public paidOut;
-    /// @notice sig tokens rewarded per block.
-    uint256 public rewardPerBlock;
+    ISigmaVoter public sigmaVoter;
+    ISigKSPFarm public sigKSPFarm;
+    ILpFarm public lpFarm;
 
-    /// @notice Info of each pool.
-    PoolInfo[] public poolInfo;
-    /// @notice Info of each user that stakes LP tokens.
-    mapping(uint256 => mapping(address => UserInfo)) public userInfo;
+    /// @notice the rate of vxSIG generated per second
+    uint256 public generationRate;
 
-    /// @notice Reward per block will be divided by totalAllocPoint
-    uint256 public totalAllocPoint; // boostTotalAllocPoint + baseTotalAllocPoint
-    /// @notice Total alloc point for boost pool.
-    uint256 public boostTotalAllocPoint;
-    /// @notice Total alloc point for base pool.
-    uint256 public baseTotalAllocPoint;
+    /// @notice max vxSIG per SIG
+    uint256 public maxVxSIGPerXSIG;
 
-    /// @notice The block number when farming starts.
-    uint256 public startBlock;
-    /// @notice The block number when farming ends.
-    uint256 public endBlock;
+    /// @notice whitelist wallet checker
+    /// @dev contract addresses are by default unable to stake xSIG, they must be previously whitelisted to stake xSIG
+    IWhitelist public whitelist;
 
-    event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
-    event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
-    event Claim(address indexed user, uint256 indexed pid, uint256 amount);
-    event PoolAdded(address indexed lpToken, uint256 indexed pid);
-    event Funded(address indexed from, uint256 amount, uint256 newEndBlock);
-    event PoolSet(
-        uint256 pid,
-        uint256 totalAlloc,
-        uint256 baseTotalAlloc,
-        uint256 boostTotalAlloc
+    struct UserInfo {
+        uint256 stakedXSIG; // staked xSIG of the user
+        uint256 lastRelease; // last release timestamp for checking pending vxSIG. last vxSIG claim time or first deposit time.
+        uint256 startTime; // initial xSIG stake timestamp.
+    }
+
+    /// @notice UserInfo mapping
+    mapping(address => UserInfo) public userInfoOf;
+
+    /// @notice events describing staking, unstaking and claiming
+    event Staked(
+        address indexed user,
+        uint256 indexed amount,
+        uint256 indexed totalStakedAmount
     );
-    event RewardPerBlockSet(uint256 rewardPerBlock, uint256 endBlock);
-    event InitialInfoSet(
-        uint256 rewardPerBlock,
-        uint256 startBlock,
-        uint256 endBlock
+    event Unstaked(
+        address indexed user,
+        uint256 indexed amount,
+        uint256 indexed totalStakedAmount
     );
+    event Claimed(address indexed user, uint256 indexed amount);
 
     /* ========== Restricted Function  ========== */
 
@@ -1446,114 +1562,6 @@ contract LpFarmV1 is
         __Ownable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
-    }
-
-    /**
-     @notice sets initialInfo of the contract.
-     */
-    function setInitialInfo(
-        IERC20Upgradeable _sig,
-        IvxERC20 _vxSIG,
-        uint256 _rewardPerBlock,
-        uint256 _startBlock
-    ) external onlyOwner {
-        sig = _sig;
-        rewardPerBlock = _rewardPerBlock;
-        startBlock = _startBlock;
-        endBlock = _startBlock;
-        vxSIG = _vxSIG;
-
-        emit InitialInfoSet(rewardPerBlock, startBlock, endBlock);
-    }
-
-    /**
-     @notice sets vxSIG Address of the contract.
-     */
-    function setVxSIGAddress(IvxERC20 _vxSIG) external onlyOwner {
-        vxSIG = _vxSIG;
-    }
-
-    /**
-      @notice Add a new lp to the pool. Can only be called by the owner.
-      @notice DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-      @param _baseAllocPoint base reward allocation of the pool
-      @param _boostAllocPoint boost reward allocation of the pool
-     */
-    function addPool(
-        uint256 _baseAllocPoint,
-        uint256 _boostAllocPoint,
-        IERC20Upgradeable _lpToken
-    ) external onlyOwner {
-        _massUpdatePools();
-        uint256 lastRewardBlock = block.number > startBlock
-            ? block.number
-            : startBlock;
-        baseTotalAllocPoint += _baseAllocPoint;
-        boostTotalAllocPoint += _boostAllocPoint;
-        totalAllocPoint = baseTotalAllocPoint + boostTotalAllocPoint;
-        poolInfo.push(
-            PoolInfo({
-                lpToken: _lpToken,
-                allocPoint: _baseAllocPoint,
-                lastRewardBlock: lastRewardBlock,
-                accERC20PerShare: 0,
-                boostAllocPoint: _boostAllocPoint,
-                boostLastRewardBlock: lastRewardBlock,
-                boostAccERC20PerShare: 0,
-                totalBoostWeight: 0
-            })
-        );
-        emit PoolAdded(address(_lpToken), poolInfo.length - 1);
-    }
-
-    /**
-      @notice Update the given pool's sig allocation point. Can only be called by the owner.
-      @param _pid pool Id
-      @param _baseAllocPoint base reward allocation of the pool
-      @param _boostAllocPoint boost reward allocation of the pool
-     */
-    function setPool(
-        uint256 _pid,
-        uint256 _baseAllocPoint,
-        uint256 _boostAllocPoint
-    ) external onlyOwner {
-        _massUpdatePools();
-        baseTotalAllocPoint =
-            baseTotalAllocPoint -
-            poolInfo[_pid].allocPoint +
-            _baseAllocPoint;
-        poolInfo[_pid].allocPoint = _baseAllocPoint;
-
-        boostTotalAllocPoint =
-            boostTotalAllocPoint -
-            poolInfo[_pid].boostAllocPoint +
-            _boostAllocPoint;
-        poolInfo[_pid].boostAllocPoint = _boostAllocPoint;
-
-        totalAllocPoint = baseTotalAllocPoint + boostTotalAllocPoint;
-
-        emit PoolSet(
-            _pid,
-            totalAllocPoint,
-            baseTotalAllocPoint,
-            boostTotalAllocPoint
-        );
-    }
-
-    /**
-     @notice set rewardPerBlock. It will change endblock as well.
-     @param _rewardPerBlock reward per block.
-     */
-    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
-        require(
-            _rewardPerBlock > 0,
-            "reward per block should be bigger than 0"
-        );
-        rewardPerBlock = _rewardPerBlock;
-        uint256 sigBalance = sig.balanceOf(address(this));
-        endBlock = startBlock + (sigBalance / rewardPerBlock);
-
-        emit RewardPerBlockSet(rewardPerBlock, endBlock);
     }
 
     /**
@@ -1580,422 +1588,244 @@ contract LpFarmV1 is
         _unpause();
     }
 
-    /* ========== External & Public Function  ========== */
-
     /**
-      @notice deposit lp token in the pool
-      @param _pid pool Id
-      @param _amount amount of the lp token to deposit
+     @notice sets initialInfo of the contract.
      */
-    function deposit(uint256 _pid, uint256 _amount)
-        external
-        whenNotPaused
-        nonReentrant
-    {
-        PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][msg.sender];
-        _updatePool(_pid);
-        if (user.amount > 0) {
-            uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) /
-                1e36) - user.rewardDebt;
+    function setInitialInfo(
+        address _xSIG,
+        address _vxSIG,
+        address _sigmaVoter,
+        address _sigKSPFarm,
+        address _lpFarm
+    ) external onlyOwner {
+        xSIG = IERC20Upgradeable(_xSIG);
+        vxSIG = IvxERC20(_vxSIG);
 
-            //if user has boost,
-            if (user.boostWeight > 0) {
-                uint256 boostPendingAmount = (user.boostWeight *
-                    pool.boostAccERC20PerShare) /
-                    1e36 -
-                    user.boostRewardDebt;
+        sigmaVoter = ISigmaVoter(_sigmaVoter);
+        sigKSPFarm = ISigKSPFarm(_sigKSPFarm);
+        lpFarm = ILpFarm(_lpFarm);
 
-                pendingAmount += boostPendingAmount;
-            }
-            transferSIG(msg.sender, pendingAmount);
-        }
+        //Initial generation rate. 0.014 vxSIG per hour
+        generationRate = 3888888888888;
 
-        pool.lpToken.safeTransferFrom(
-            address(msg.sender),
-            address(this),
-            _amount
-        );
-
-        user.amount += _amount;
-        user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
-
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
-        }
-
-        emit Deposit(msg.sender, _pid, _amount);
+        //Initial vxSIG per xSIG is 100
+        maxVxSIGPerXSIG = 100000000000000000000;
     }
 
     /**
-      @notice withdraw lp token and gets pending token.
-      @param _pid pool Id
-      @param _amount amount of the lp token to withdraw
+     @notice sets generation rate
+     @param _generationRate the new generation rate. how much vxSIG going to be added per second.
      */
-    function withdraw(uint256 _pid, uint256 _amount)
-        external
-        whenNotPaused
-        nonReentrant
-    {
-        PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][msg.sender];
+    function setGenerationRate(uint256 _generationRate) external onlyOwner {
+        require(_generationRate != 0, "generation rate cannot be zero");
         require(
-            user.amount >= _amount,
-            "withdraw: can't withdraw more than deposit"
+            _generationRate != generationRate,
+            "new generation is same with old one"
         );
-        _updatePool(_pid);
 
-        uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) / 1e36) -
-            user.rewardDebt;
-
-        //if user has boost,
-        if (user.boostWeight > 0) {
-            uint256 boostPendingAmount = (user.boostWeight *
-                pool.boostAccERC20PerShare) /
-                1e36 -
-                user.boostRewardDebt;
-            pendingAmount += boostPendingAmount;
-        }
-
-        transferSIG(msg.sender, pendingAmount);
-
-        user.amount -= _amount;
-        user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
-
-            _updateBoostWeight(msg.sender, _pid);
-        }
-
-        pool.lpToken.safeTransfer(address(msg.sender), _amount);
-        emit Withdraw(msg.sender, _pid, _amount);
+        generationRate = _generationRate;
     }
 
     /**
-      @notice claim pending rewards on the pool
-      @param _pid pool id 
+     @notice sets maxBoosterPerSIG
+     @param _maxVxSIGPerXSIG the new max vxSIG per 1 xSIG
      */
-    function claim(uint256 _pid) external whenNotPaused nonReentrant {
-        UserInfo storage user = userInfo[_pid][msg.sender];
-        require(user.amount > 0, "User didn't deposit in this pool.");
-        PoolInfo storage pool = poolInfo[_pid];
-        uint256 pendingAmount = getUserBasePending(_pid, msg.sender);
-        if (user.boostWeight > 0) {
-            pendingAmount += getUserBoostPending(_pid, msg.sender);
-        }
-        require(pendingAmount > 0, "There is no rewards to claim");
-
-        _updatePool(_pid);
-        transferSIG(msg.sender, pendingAmount);
-
-        user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
-        }
-        emit Claim(msg.sender, _pid, pendingAmount);
+    function setMaxVxSIGPerXSIG(uint256 _maxVxSIGPerXSIG) external onlyOwner {
+        require(_maxVxSIGPerXSIG != 0, "_maxVxSIGPerXSIG cannot be zero");
+        require(
+            _maxVxSIGPerXSIG != maxVxSIGPerXSIG,
+            "new maxVxSIGPerXSIG is same with old one"
+        );
+        maxVxSIGPerXSIG = _maxVxSIGPerXSIG;
     }
 
     /**
-      @notice update boost weight of the user to all pool user voted.
-      @notice This will be called from xSIGFarm if user activate boost.
+     @notice sets whitelist address
+     @param _whitelistAddr the new whitelist address
      */
-    function updateBoostWeight() external override {
-        for (uint256 i = 0; i < poolInfo.length; i++) {
-            UserInfo storage user = userInfo[i][msg.sender];
-            if (user.amount > 0) {
-                _updateBoostWeight(msg.sender, i);
-            }
+    function setWhitelist(address _whitelistAddr) external onlyOwner {
+        require(_whitelistAddr != address(0), "zero address");
+        whitelist = IWhitelist(_whitelistAddr);
+    }
+
+    /* ========== External Function  ========== */
+
+    /**
+     @notice stake xSIG
+     @notice if user already staked xSIG, claim vxSIG first and then stake.
+     @param _amount the amount of xSIG to stake
+     */
+    function stake(uint256 _amount)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
+        require(_amount > 0, "stake xSIG amount should be bigger than 0");
+
+        _assertNotContract(msg.sender);
+        UserInfo storage userInfo = userInfoOf[msg.sender];
+        if (userInfo.stakedXSIG > 0) {
+            _claim(msg.sender);
+        } else {
+            // Add user and set initial info
+            userInfo.startTime = block.timestamp;
+            userInfo.lastRelease = block.timestamp;
         }
+
+        userInfo.stakedXSIG += _amount;
+        xSIG.safeTransferFrom(msg.sender, address(this), _amount);
+
+        emit Staked(msg.sender, _amount, userInfo.stakedXSIG);
     }
 
     /**
-      @notice update pool both with base,boost. anyone can update pool.
-      @param _pid pool id
+     @notice withdraws staked xSIG
+     @notice You should be aware that you are going to lose all of your vxSIG if you unstake any amount of xSIG.
+     @param _amount the amount of xSIG to unstake
      */
-    function updatePool(uint256 _pid) external whenNotPaused nonReentrant {
-        _updatePoolWithBaseReward(_pid);
-        _updatePoolWithBoostReward(_pid);
-    }
+    function unstake(uint256 _amount)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
+        require(_amount > 0, "Unstake amount should be bigger than 0");
+        UserInfo storage userInfo = userInfoOf[msg.sender];
+        require(userInfo.stakedXSIG >= _amount, "Insuffcient xSIG to unstake");
 
-    /**
-      @notice Update reward variables for all pools. Be careful of gas spending! anyone can update pool.
-     */
-    function massUpdatePools() external whenNotPaused nonReentrant {
-        uint256 length = poolInfo.length;
-        for (uint256 pid = 0; pid < length; ++pid) {
-            _updatePool(pid);
+        userInfo.stakedXSIG -= _amount;
+
+        if (userInfo.stakedXSIG == 0) {
+            userInfo.startTime = 0;
+            userInfo.lastRelease = 0;
+        } else {
+            userInfo.startTime = block.timestamp;
+            userInfo.lastRelease = block.timestamp;
         }
+
+        //burn vxSIG of user. balance goes to 0
+        uint256 uservxSIGBalance = vxSIG.balanceOf(msg.sender);
+        vxSIG.burn(msg.sender, uservxSIGBalance);
+
+        xSIG.safeTransfer(msg.sender, _amount);
+
+        uint256 userVotedCount = sigmaVoter.getUserVotesCount(msg.sender);
+        if (userVotedCount > 0) {
+            sigmaVoter.deleteAllPoolVote();
+        }
+
+        lpFarm.updateBoostWeight();
+        sigKSPFarm.updateBoostWeight();
+
+        emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
     }
 
     /**
-      @notice Fund the farm, anyone call fund sig token.
-      @param _amount amount of the token to fund.
+     @notice claims accumulated vxSIG
      */
-    function fund(uint256 _amount) external whenNotPaused nonReentrant {
-        require(block.number < endBlock, "fund: too late, the farm is closed");
-        require(_amount > 0, "Funding amount should be bigger than 0");
-
-        endBlock += _amount / rewardPerBlock;
-        sig.safeTransferFrom(address(msg.sender), address(this), _amount);
-
-        emit Funded(msg.sender, _amount, endBlock);
+    function claim() external override whenNotPaused nonReentrant {
+        require(isUser(msg.sender), "User didn't stake any xSIG.");
+        _claim(msg.sender);
     }
 
     /* ========== Internal & Private Function  ========== */
 
     /**
-      @notice update pool both with base,boost. anyone can update pool.
-      @param _pid pool id
+     @notice asserts address in param is not a smart contract. if it is a smart contract, check that it is whitelisted
+     @param _address the address to check 
      */
-    function _updatePool(uint256 _pid) private {
-        _updatePoolWithBaseReward(_pid);
-        _updatePoolWithBoostReward(_pid);
-    }
-
-    /**
-      @notice Update reward variables for all pools. Be careful of gas spending! anyone can update pool.
-     */
-    function _massUpdatePools() private {
-        uint256 length = poolInfo.length;
-        for (uint256 pid = 0; pid < length; ++pid) {
-            _updatePool(pid);
+    function _assertNotContract(address _address) private view {
+        if (_address != tx.origin) {
+            require(
+                address(whitelist) != address(0) && whitelist.check(_address),
+                "Smart contract depositors not allowed, ask for whitelisting if you are smart contract."
+            );
         }
     }
 
     /**
-      @notice update boost weight of all existing pool
-      @param _addr address of the user
-      @param _pid pool id 
+        @notice private claim vxSIG function
+        @param _address the address of the user to claim from
      */
-    function _updateBoostWeight(address _addr, uint256 _pid) internal {
-        PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][_addr];
+    function _claim(address _address) private {
+        uint256 amount = _claimable(_address);
 
-        _updatePoolWithBoostReward(_pid);
+        // update last release time
+        userInfoOf[_address].lastRelease = block.timestamp;
 
-        uint256 vxAmount = vxSIG.balanceOf(_addr);
-        uint256 oldBoostWeight = user.boostWeight;
-
-        uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
-        user.boostWeight = newBoostWeight;
-        pool.totalBoostWeight =
-            pool.totalBoostWeight -
-            oldBoostWeight +
-            newBoostWeight;
+        if (amount > 0) {
+            vxSIG.mint(_address, amount);
+            emit Claimed(_address, amount);
+        }
     }
 
     /**
-      @notice send _amount amount of sig to _to & add up paidOut
-      @param _to receiver of the token
-      @param _amount amount of the sig token to send 
+     @notice private claim function
+     @param _address the address of the user to claim from
      */
-    function transferSIG(address _to, uint256 _amount) internal {
-        paidOut += _amount;
-        sig.safeTransfer(_to, _amount);
-    }
+    function _claimable(address _address) private view returns (uint256) {
+        UserInfo memory user = userInfoOf[_address];
 
-    /**
-      @notice update base reward variable of the pool
-      @param _pid pool Id
-     */
-    function _updatePoolWithBaseReward(uint256 _pid) internal {
-        PoolInfo storage pool = poolInfo[_pid];
-        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
+        // get seconds elapsed since last claim
+        uint256 secondsElapsed = block.timestamp - user.lastRelease;
 
-        if (lastBlock <= pool.lastRewardBlock) {
-            return;
-        }
-        uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        if (lpSupply == 0) {
-            pool.lastRewardBlock = lastBlock;
-            return;
-        }
+        // DSMath.wmul used to multiply wad numbers
+        uint256 pending = DSMath.wmul(
+            user.stakedXSIG,
+            secondsElapsed * generationRate
+        );
+        // get user's vxSIG balance
+        uint256 userVxSIGBalance = vxSIG.balanceOf(_address);
 
-        uint256 nrOfBlocks = lastBlock - (pool.lastRewardBlock);
+        // user vxSIG balance cannot go above user.amount * maxCap
+        uint256 maxVxSIGCap = DSMath.wmul(user.stakedXSIG, maxVxSIGPerXSIG);
 
-        uint256 erc20Reward = (nrOfBlocks * rewardPerBlock * pool.allocPoint) /
-            totalAllocPoint;
-
-        pool.accERC20PerShare =
-            pool.accERC20PerShare +
-            (erc20Reward * 1e36) /
-            lpSupply;
-        pool.lastRewardBlock = block.number;
-    }
-
-    /**
-      @notice update boost reward variable of the pool
-      @param _pid pool Id
-     */
-    function _updatePoolWithBoostReward(uint256 _pid) internal {
-        PoolInfo storage pool = poolInfo[_pid];
-        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
-
-        if (lastBlock <= pool.boostLastRewardBlock) {
-            return;
-        }
-        uint256 totalBoostWeight = pool.totalBoostWeight;
-        if (totalBoostWeight == 0) {
-            pool.boostLastRewardBlock = lastBlock;
-            return;
-        }
-
-        uint256 nrOfBlocks = lastBlock - pool.boostLastRewardBlock;
-
-        uint256 erc20Reward = (nrOfBlocks *
-            rewardPerBlock *
-            pool.boostAllocPoint) / totalAllocPoint;
-
-        pool.boostAccERC20PerShare =
-            pool.boostAccERC20PerShare +
-            (erc20Reward * 1e36) /
-            totalBoostWeight;
-        pool.boostLastRewardBlock = block.number;
-    }
-
-    function _sqrt(uint256 y) internal pure returns (uint256 z) {
-        if (y > 3) {
-            z = y;
-            uint256 x = y / 2 + 1;
-            while (x < z) {
-                z = x;
-                x = (y / x + x) / 2;
+        // first, check that user hasn't reached the max limit yet
+        if (userVxSIGBalance < maxVxSIGCap) {
+            // then, check if pending amount will make user balance overpass maximum amount
+            if ((userVxSIGBalance + pending) > maxVxSIGCap) {
+                return maxVxSIGCap - userVxSIGBalance;
+            } else {
+                return pending;
             }
-        } else if (y != 0) {
-            z = 1;
         }
+        return 0;
     }
 
     /* ========== View Function  ========== */
 
     /**
-     @notice total pending amount on protocol.
-     */
-    function totalProtocolPending() external view returns (uint256) {
-        if (block.number <= startBlock) {
-            return 0;
-        }
-
-        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
-        return (rewardPerBlock * (lastBlock - startBlock)) - paidOut;
+     @notice checks wether user _address has xSIG staked
+     @param _address the user address to check
+     @return true if the user has xSIG in stake, false otherwise
+    */
+    function isUser(address _address) public view override returns (bool) {
+        return userInfoOf[_address].stakedXSIG > 0;
     }
 
     /**
-     @notice get pool length
+     @notice Calculate the amount of vxSIG that can be claimed by user
+     @param _address the address to check
+     @return amount of vxSIG that can be claimed by user
      */
-    function poolLength() external view returns (uint256) {
-        return poolInfo.length;
+
+    function claimable(address _address) external view returns (uint256) {
+        require(_address != address(0), "zero address");
+        return _claimable(_address);
     }
 
     /**
-     @notice user total pending reward including base and boost reward..
-     @param _pid pool id
-     @param _user user address 
+     @notice Check Staked xSIG of the user
+     @param _address the user address to check
      */
-    function getUserTotalPendingReward(uint256 _pid, address _user)
+    function getStakedXSIG(address _address)
         external
         view
+        override
         returns (uint256)
     {
-        uint256 totalPending = 0;
-        totalPending += getUserBasePending(_pid, _user);
-        totalPending += getUserBoostPending(_pid, _user);
-
-        return totalPending;
-    }
-
-    /**
-     @notice pending amount with base reward.
-     @param _pid pool id
-     @param _user user address 
-     */
-    function getUserBasePending(uint256 _pid, address _user)
-        public
-        view
-        returns (uint256)
-    {
-        PoolInfo memory pool = poolInfo[_pid];
-        UserInfo memory user = userInfo[_pid][_user];
-        if (user.amount == 0) {
-            return 0;
-        }
-        uint256 accERC20PerShare = pool.accERC20PerShare;
-        uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
-
-        if (
-            lastBlock > pool.lastRewardBlock &&
-            block.number > pool.lastRewardBlock &&
-            lpSupply != 0
-        ) {
-            uint256 nrOfBlocks = lastBlock - pool.lastRewardBlock;
-            uint256 erc20Reward = (nrOfBlocks *
-                rewardPerBlock *
-                pool.allocPoint) / totalAllocPoint;
-            accERC20PerShare =
-                accERC20PerShare +
-                ((erc20Reward * 1e36) / lpSupply);
-        }
-
-        return ((user.amount * accERC20PerShare) / 1e36) - user.rewardDebt;
-    }
-
-    /**
-     @notice pending amount with boost reward.
-     */
-    function getUserBoostPending(uint256 _pid, address _user)
-        public
-        view
-        returns (uint256)
-    {
-        PoolInfo memory pool = poolInfo[_pid];
-        UserInfo memory user = userInfo[_pid][_user];
-
-        if (user.boostWeight == 0) {
-            return 0;
-        }
-        uint256 boostAccERC20PerShare = pool.boostAccERC20PerShare;
-        uint256 totalBoostWeight = pool.totalBoostWeight;
-        uint256 lastBlock = block.number < endBlock ? block.number : endBlock;
-
-        if (
-            lastBlock > pool.boostLastRewardBlock &&
-            block.number > pool.boostLastRewardBlock &&
-            totalBoostWeight != 0
-        ) {
-            uint256 nrOfBlocks = lastBlock - pool.boostLastRewardBlock;
-
-            uint256 erc20Reward = (nrOfBlocks *
-                rewardPerBlock *
-                pool.boostAllocPoint) / (totalAllocPoint);
-
-            boostAccERC20PerShare =
-                boostAccERC20PerShare +
-                (erc20Reward * 1e36) /
-                totalBoostWeight;
-        }
-
-        return
-            (user.boostWeight * boostAccERC20PerShare) /
-            1e36 -
-            user.boostRewardDebt;
-    }
-
-    /**
-     @notice deposited amount of the lp.
-     */
-    function deposited(uint256 _pid, address _user)
-        external
-        view
-        returns (uint256)
-    {
-        UserInfo memory user = userInfo[_pid][_user];
-        return user.amount;
+        require(_address != address(0), "zero address");
+        return userInfoOf[_address].stakedXSIG;
     }
 }

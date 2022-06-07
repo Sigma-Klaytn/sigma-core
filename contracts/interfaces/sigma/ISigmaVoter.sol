@@ -12,4 +12,6 @@ interface ISigmaVoter {
         );
 
     function getUserVotesCount(address _user) external view returns (uint256);
+
+    function deleteAllPoolVote() external;
 }

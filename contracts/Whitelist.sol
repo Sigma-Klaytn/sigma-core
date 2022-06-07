@@ -2,10 +2,11 @@
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/sigma/IWhitelist.sol";
 
 /// @title Whitelist
 /// @notice contains a list of wallets allowed to perform a certain operation
-contract Whitelist is Ownable {
+contract Whitelist is Ownable, IWhitelist {
     mapping(address => bool) internal wallets;
 
     /// @notice events of approval and revoking wallets
@@ -14,7 +15,7 @@ contract Whitelist is Ownable {
 
     /// @notice approves wallet
     /// @param _wallet the wallet to approve
-    function approveWallet(address _wallet) external onlyOwner {
+    function approveWallet(address _wallet) external override onlyOwner {
         if (!wallets[_wallet]) {
             wallets[_wallet] = true;
             emit ApproveWallet(_wallet);
@@ -23,7 +24,7 @@ contract Whitelist is Ownable {
 
     /// @notice revokes wallet
     /// @param _wallet the wallet to revoke
-    function revokeWallet(address _wallet) external onlyOwner {
+    function revokeWallet(address _wallet) external override onlyOwner {
         if (wallets[_wallet]) {
             wallets[_wallet] = false;
             emit RevokeWallet(_wallet);
@@ -33,7 +34,7 @@ contract Whitelist is Ownable {
     /// @notice checks if _wallet is whitelisted
     /// @param _wallet the wallet to check
     /// @return true if wallet is whitelisted
-    function check(address _wallet) external view returns (bool) {
+    function check(address _wallet) external view override returns (bool) {
         return wallets[_wallet];
     }
 }

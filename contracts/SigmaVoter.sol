@@ -271,7 +271,7 @@ contract SigmaVoter is Ownable, ISigmaVoter {
     /**
         @notice withdraw user's all of vxSIG vote.
      */
-    function deleteAllPoolVote() external {
+    function deleteAllPoolVote() external override {
         PoolVote[] memory userVotes = userPoolVotes[msg.sender];
         require(userVotes.length > 0, "User didn't vote yet");
 

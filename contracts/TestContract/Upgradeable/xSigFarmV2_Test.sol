@@ -1,22 +1,39 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/sigma/IWhitelist.sol";
-import "./interfaces/sigma/IxSIGFarm.sol";
-import "./interfaces/sigma/IvxERC20.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "./interfaces/sigma/ISigmaVoter.sol";
-import "./interfaces/sigma/ISigKSPFarm.sol";
-import "./interfaces/sigma/ILpFarm.sol";
+import "../../interfaces/sigma/IWhitelist.sol";
+import "../../interfaces/sigma/IxSIGFarm.sol";
+import "../../interfaces/sigma/IvxERC20.sol";
 
-import "./libraries/DSMath.sol";
+import "../../interfaces/sigma/ISigmaVoter.sol";
+import "../../interfaces/sigma/ISigKSPFarm.sol";
+import "../../interfaces/sigma/ILpFarm.sol";
 
-contract xSIGFarm is Ownable, IxSIGFarm {
+import "../../libraries/DSMath.sol";
+
+// Test Contract for testing upgradeability.
+// [Changed feature]
+// 1. stake xSIG amount should be bigger than 1 ether
+contract xSigFarmV2_Test is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    IxSIGFarm
+{
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+
     /* ========== STATE VARIABLES ========== */
 
-    IERC20 public xSIG;
+    IERC20Upgradeable public xSIG;
     IvxERC20 public vxSIG;
     ISigmaVoter public sigmaVoter;
     ISigKSPFarm public sigKSPFarm;
@@ -54,78 +71,40 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     );
     event Claimed(address indexed user, uint256 indexed amount);
 
-    /* ========== External Function  ========== */
-
-    /**
-     @notice stake xSIG
-     @notice if user already staked xSIG, claim vxSIG first and then stake.
-     @param _amount the amount of xSIG to stake
-     */
-    function stake(uint256 _amount) external override {
-        require(_amount > 0, "stake xSIG amount should be bigger than 0");
-
-        _assertNotContract(msg.sender);
-        UserInfo storage userInfo = userInfoOf[msg.sender];
-        if (userInfo.stakedXSIG > 0) {
-            _claim(msg.sender);
-        } else {
-            // Add user and set initial info
-            userInfo.startTime = block.timestamp;
-            userInfo.lastRelease = block.timestamp;
-        }
-
-        userInfo.stakedXSIG += _amount;
-        xSIG.transferFrom(msg.sender, address(this), _amount);
-
-        emit Staked(msg.sender, _amount, userInfo.stakedXSIG);
-    }
-
-    /**
-     @notice withdraws staked xSIG
-     @notice You should be aware that you are going to lose all of your vxSIG if you unstake any amount of xSIG.
-     @param _amount the amount of xSIG to unstake
-     */
-    function unstake(uint256 _amount) external override {
-        require(_amount > 0, "Unstake amount should be bigger than 0");
-        UserInfo storage userInfo = userInfoOf[msg.sender];
-        require(userInfo.stakedXSIG >= _amount, "Insuffcient xSIG to unstake");
-
-        userInfo.stakedXSIG -= _amount;
-
-        if (userInfo.stakedXSIG == 0) {
-            userInfo.startTime = 0;
-            userInfo.lastRelease = 0;
-        } else {
-            userInfo.startTime = block.timestamp;
-            userInfo.lastRelease = block.timestamp;
-        }
-
-        //burn vxSIG of user. balance goes to 0
-        uint256 uservxSIGBalance = vxSIG.balanceOf(msg.sender);
-        vxSIG.burn(msg.sender, uservxSIGBalance);
-
-        xSIG.transfer(msg.sender, _amount);
-
-        uint256 userVotedCount = sigmaVoter.getUserVotesCount(msg.sender);
-        if (userVotedCount > 0) {
-            sigmaVoter.deleteAllPoolVote();
-        }
-
-        lpFarm.updateBoostWeight();
-        sigKSPFarm.updateBoostWeight();
-
-        emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
-    }
-
-    /**
-     @notice claims accumulated vxSIG
-     */
-    function claim() external override {
-        require(isUser(msg.sender), "User didn't stake any xSIG.");
-        _claim(msg.sender);
-    }
-
     /* ========== Restricted Function  ========== */
+
+    /**
+        @notice Initialize UUPS upgradeable smart contract.
+     */
+    function initialize() external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+    }
+
+    /**
+        @notice restrict upgrade to only owner.
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        virtual
+        override
+        onlyOwner
+    {}
+
+    /**
+        @notice pause contract functions.
+     */
+    function pause() external onlyOwner whenNotPaused {
+        _pause();
+    }
+
+    /**
+        @notice unpause contract functions.
+     */
+    function unpause() external onlyOwner whenPaused {
+        _unpause();
+    }
 
     /**
      @notice sets initialInfo of the contract.
@@ -137,7 +116,7 @@ contract xSIGFarm is Ownable, IxSIGFarm {
         address _sigKSPFarm,
         address _lpFarm
     ) external onlyOwner {
-        xSIG = IERC20(_xSIG);
+        xSIG = IERC20Upgradeable(_xSIG);
         vxSIG = IvxERC20(_vxSIG);
 
         sigmaVoter = ISigmaVoter(_sigmaVoter);
@@ -185,6 +164,90 @@ contract xSIGFarm is Ownable, IxSIGFarm {
     function setWhitelist(address _whitelistAddr) external onlyOwner {
         require(_whitelistAddr != address(0), "zero address");
         whitelist = IWhitelist(_whitelistAddr);
+    }
+
+    /* ========== External Function  ========== */
+
+    /**
+     @notice stake xSIG
+     @notice if user already staked xSIG, claim vxSIG first and then stake.
+     @param _amount the amount of xSIG to stake
+     */
+    function stake(uint256 _amount)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
+        require(
+            _amount >= 1 ether,
+            "stake xSIG amount should be bigger than 1 ether"
+        );
+
+        _assertNotContract(msg.sender);
+        UserInfo storage userInfo = userInfoOf[msg.sender];
+        if (userInfo.stakedXSIG > 0) {
+            _claim(msg.sender);
+        } else {
+            // Add user and set initial info
+            userInfo.startTime = block.timestamp;
+            userInfo.lastRelease = block.timestamp;
+        }
+
+        userInfo.stakedXSIG += _amount;
+        xSIG.transferFrom(msg.sender, address(this), _amount);
+
+        emit Staked(msg.sender, _amount, userInfo.stakedXSIG);
+    }
+
+    /**
+     @notice withdraws staked xSIG
+     @notice You should be aware that you are going to lose all of your vxSIG if you unstake any amount of xSIG.
+     @param _amount the amount of xSIG to unstake
+     */
+    function unstake(uint256 _amount)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
+        require(_amount > 0, "Unstake amount should be bigger than 0");
+        UserInfo storage userInfo = userInfoOf[msg.sender];
+        require(userInfo.stakedXSIG >= _amount, "Insuffcient xSIG to unstake");
+
+        userInfo.stakedXSIG -= _amount;
+
+        if (userInfo.stakedXSIG == 0) {
+            userInfo.startTime = 0;
+            userInfo.lastRelease = 0;
+        } else {
+            userInfo.startTime = block.timestamp;
+            userInfo.lastRelease = block.timestamp;
+        }
+
+        //burn vxSIG of user. balance goes to 0
+        uint256 uservxSIGBalance = vxSIG.balanceOf(msg.sender);
+        vxSIG.burn(msg.sender, uservxSIGBalance);
+
+        xSIG.transfer(msg.sender, _amount);
+
+        uint256 userVotedCount = sigmaVoter.getUserVotesCount(msg.sender);
+        if (userVotedCount > 0) {
+            sigmaVoter.deleteAllPoolVote();
+        }
+
+        lpFarm.updateBoostWeight();
+        sigKSPFarm.updateBoostWeight();
+
+        emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
+    }
+
+    /**
+     @notice claims accumulated vxSIG
+     */
+    function claim() external override whenNotPaused nonReentrant {
+        require(isUser(msg.sender), "User didn't stake any xSIG.");
+        _claim(msg.sender);
     }
 
     /* ========== Internal & Private Function  ========== */

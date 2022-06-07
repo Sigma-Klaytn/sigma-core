@@ -39,6 +39,8 @@ const LpFarmV1 = artifacts.require('LpFarmV1')
 const LpFarmV2_Test = artifacts.require('LpFarmV2_Test');
 const SigFarmV1 = artifacts.require('SigFarmV1');
 const SigFarmV2_Test = artifacts.require('SigFarmV2_Test');
+const xSigFarmV1 = artifacts.require('xSigFarmV1')
+const xSigFarmV2_Test = artifacts.require('xSigFarmV2_Test')
 
 
 
@@ -149,6 +151,13 @@ async function makeSigFarmV2_Test(opts = {}) {
     return await SigFarmV2_Test.new()
 }
 
+async function makexSigFarmV1(opts = {}) {
+    return await xSigFarmV1.new()
+}
+async function makexSigFarmV2_Test(opts = {}) {
+    return await xSigFarmV2_Test.new()
+}
+
 
 
 module.exports = {
@@ -179,6 +188,8 @@ module.exports = {
     LpFarmV2_Test,
     SigFarmV1,
     SigFarmV2_Test,
+    xSigFarmV1,
+    xSigFarmV2_Test,
     makeErc20Token,
     makeDepositingVault,
     makeVault,
@@ -205,5 +216,7 @@ module.exports = {
     makeLpFarmV1,
     makeLpFarmV2_Test,
     makeSigFarmV1,
-    makeSigFarmV2_Test
+    makeSigFarmV2_Test,
+    makexSigFarmV1,
+    makexSigFarmV2_Test
 };

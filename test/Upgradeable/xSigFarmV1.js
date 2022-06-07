@@ -2,15 +2,18 @@ const {
     makeSIGFarm,
     makeXSIGToken,
     makeVxSIGToken,
-    makeXSIGFarm,
+    makexSigFarmV1,
+    makexSigFarmV2_Test,
+    makeUUPSProxy,
     xSIGToken,
     SIGFarm,
-    xSIGFarm,
+    xSigFarmV1,
+    xSigFarmV2_Test,
     vxSIGToken,
     makeSigmaVoter,
     makeSigKSPFarm,
     makeLpFarm
-} = require('./Utils/Sigma');
+} = require('../Utils/Sigma');
 
 const {
     expectAlmostEqualMantissa,
@@ -20,7 +23,7 @@ const {
     BN,
     expectEqual,
     time
-} = require('./Utils/JS');
+} = require('../Utils/JS');
 const { MAX_INT256 } = require('@openzeppelin/test-helpers/src/constants');
 const e = require('express');
 const { expect } = require('chai');
@@ -53,7 +56,11 @@ contract('xSIGFarm', function (accounts) {
 
     let vxSIGToken;
     let xSIGToken;
+
+    let xSIGFarmImpl;
+    let xSIGFarmProxy;
     let xSIGFarm;
+
     let SigmaVoter;
     let SigKSPFarm;
     let LpFarm;
@@ -75,7 +82,11 @@ contract('xSIGFarm', function (accounts) {
             //Deploy from the start.
             xSIGToken = await makeXSIGToken();
             vxSIGToken = await makeVxSIGToken();
-            xSIGFarm = await makeXSIGFarm();
+
+            xSIGFarmImpl = await makexSigFarmV1();
+            xSIGFarmProxy = await makeUUPSProxy(xSIGFarmImpl.address, "0x")
+            xSIGFarm = await xSigFarmV1.at(xSIGFarmProxy.address);
+            await xSIGFarm.initialize()
 
             SigmaVoter = await makeSigmaVoter()
             SigKSPFarm = await makeSigKSPFarm()
@@ -333,6 +344,17 @@ contract('xSIGFarm', function (accounts) {
             // 2. setGeneration Rate
             await xSIGFarm.setMaxVxSIGPerXSIG(newMaxBoosterPerSIG, { from: root })
             expectEqual(await xSIGFarm.maxVxSIGPerXSIG(), newMaxBoosterPerSIG)
+        })
+
+        it('Test : 6. Upgrade Test', async () => {
+
+            let xSigFarmV2_TestImpl = await makexSigFarmV2_Test();
+            await xSIGFarm.upgradeTo(xSigFarmV2_TestImpl.address)
+            xSIGFarm = await xSigFarmV2_Test.at(xSIGFarmProxy.address);
+
+            await expectRevert(xSIGFarm.stake(new BN(10000), { from: userA }), "stake xSIG amount should be bigger than 1 ether")
+
+            await xSIGFarm.stake(bnMantissa(1), { from: userA })
 
         })
 
