@@ -22,14 +22,14 @@ const IPoolVoting = artifacts.require('IPoolVoting');
 const SigKSPStaking = artifacts.require('SigKSPStaking');
 const SIGLocker = artifacts.require('SIGLocker');
 const TokenSale = artifacts.require('TokenSale');
-const SIGFarm = artifacts.require('SIGFarm');
+// const SIGFarm = artifacts.require('SIGFarm');
 const xSIGToken = artifacts.require('xSIGToken');
 const vxSIGToken = artifacts.require('vxSIGToken');
-const xSIGFarm = artifacts.require('xSIGFarm');
-const LpFarm = artifacts.require('LPFarm');
+// const xSIGFarm = artifacts.require('xSIGFarm');
+// const LpFarm = artifacts.require('LPFarm');
 const Lockdrop = artifacts.require('Lockdrop');
-const SigKSPFarm = artifacts.require('SigKSPFarm');
-const SigmaVoter = artifacts.require('SigmaVoter');
+// const SigKSPFarm = artifacts.require('SigKSPFarm');
+// const SigmaVoter = artifacts.require('SigmaVoter');
 const UUPSProxy = artifacts.require('UUPSProxy')
 const UpgradeableLockdrop = artifacts.require('UpgradeableLockdropV1')
 const UpgradeableLockdropV2 = artifacts.require('UpgradeableLockdropV2')
@@ -77,25 +77,12 @@ async function makeMockVotingKSP(kspToken, opts = {}) {
     return await MockVotingKSP.new(kspToken);
 }
 
-// async function makeKSPConverter(kspToken, votingKSP, opts = {}) {
-//     return await KSPConverter.new(kspToken, votingKSP);
-// }
 
-async function makeSigKSPStaking(opts = {}) {
-    return await SigKSPStaking.new();
-}
-
-async function makeSIGLocker(maxLockWeeks, sigToken, opts = {}) {
-    return await SIGLocker.new(maxLockWeeks, sigToken);
-}
 
 async function makeTokenSale(opts = {}) {
     return await TokenSale.new();
 }
 
-async function makeSIGFarm(opts = {}) {
-    return await SIGFarm.new();
-}
 
 async function makeXSIGToken(opts = {}) {
     return await xSIGToken.new()
@@ -104,25 +91,14 @@ async function makeXSIGToken(opts = {}) {
 async function makeVxSIGToken(opts = {}) {
     return await vxSIGToken.new();
 }
-async function makeXSIGFarm(opts = {}) {
-    return await xSIGFarm.new();
-}
 
-async function makeLpFarm(opts = {}) {
-    return await LpFarm.new();
-}
+
 
 async function makeLockdrop(opts = {}) {
     return await Lockdrop.new();
 }
 
-async function makeSigKSPFarm(opts = {}) {
-    return await SigKSPFarm.new();
-}
 
-async function makeSigmaVoter(opts = {}) {
-    return await SigmaVoter.new();
-}
 
 async function makeUUPSProxy(implAddress, data, opts = {}) {
     return await UUPSProxy.new(implAddress, data);
@@ -192,19 +168,11 @@ module.exports = {
     Vault,
     KSPVault,
     MockVotingKSP,
-    // KSPConverter,
-    SigKSPStaking,
-    SIGLocker,
     TokenSale,
-    SIGFarm,
     xSIGToken,
-    xSIGFarm,
     vxSIGToken,
     IPoolVoting,
-    LpFarm,
     Lockdrop,
-    SigKSPFarm,
-    SigmaVoter,
     UUPSProxy,
     UpgradeableLockdrop,
     UpgradeableLockdropV2,
@@ -228,18 +196,13 @@ module.exports = {
     makeKSPVault,
     makeMockVotingKSP,
     // makeKSPConverter,
-    makeSigKSPStaking,
-    makeSIGLocker,
+
     makeTokenSale,
-    makeSIGFarm,
     makeXSIGToken,
-    makeXSIGFarm,
     makeVxSIGToken,
     makeIPoolVoting,
-    makeLpFarm,
     makeLockdrop,
-    makeSigKSPFarm,
-    makeSigmaVoter,
+
     makeUUPSProxy,
     makeUpgradeableLockdrop,
     makeUpgradeableLockdropV2,
