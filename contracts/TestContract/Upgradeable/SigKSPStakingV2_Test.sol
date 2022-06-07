@@ -1,15 +1,27 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "./dependencies/Ownable.sol";
-import "./dependencies/SafeERC20.sol";
-import "./interfaces/sigma/ISigKSPStaking.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
-    using SafeERC20 for IERC20;
+import "../../interfaces/sigma/ISigKSPStaking.sol";
+
+// [Changed feature]
+// 1. deposit sigKSP amount should be bigger than 1 ether
+
+contract SigKSPStakingV2_Test is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    ISigKSPStaking
+{
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     /* ========== STATE VARIABLES ========== */
 
@@ -20,7 +32,7 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
         uint256 rewardPerTokenStored;
         uint256 balance;
     }
-    IERC20 public stakingToken;
+    IERC20Upgradeable public stakingToken;
     address[2] public rewardTokens;
     mapping(address => Reward) public rewardData;
 
@@ -34,7 +46,7 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
 
-    uint256 public REWARDS_DURATION = 86400 * 7;
+    uint256 public REWARDS_DURATION;
 
     event RewardAdded(address indexed rewardsToken, uint256 reward);
     event Staked(address indexed user, uint256 amount);
@@ -54,14 +66,59 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
     );
 
     /* ========== Restricted Function  ========== */
-    function setAddresses(
-        address _stakingToken,
-        address[2] memory _rewardTokens
-    ) external onlyOwner {
-        stakingToken = IERC20(_stakingToken); // sigKSP
-        rewardTokens = _rewardTokens; // KSP, SIG
+
+    /**
+        @notice Initialize UUPS upgradeable smart contract.
+     */
+    function initialize() external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
     }
 
+    /**
+        @notice restrict upgrade to only owner.
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        virtual
+        override
+        onlyOwner
+    {}
+
+    /**
+        @notice pause contract functions.
+     */
+    function pause() external onlyOwner whenNotPaused {
+        _pause();
+    }
+
+    /**
+        @notice unpause contract functions.
+     */
+    function unpause() external onlyOwner whenPaused {
+        _unpause();
+    }
+
+    /**
+     @notice sets initialInfo of the contract.
+     */
+    function setInitialInfo(
+        address _stakingToken,
+        address[2] memory _rewardTokens,
+        uint256 _rewardDuration,
+        address _rewardsDistribution
+    ) external onlyOwner {
+        stakingToken = IERC20Upgradeable(_stakingToken); // sigKSP
+        rewardTokens = _rewardTokens; // KSP, SIG
+        REWARDS_DURATION = _rewardDuration;
+        rewardsDistribution = _rewardsDistribution;
+    }
+
+    /**
+     @notice update reward amount. 
+     @dev only can be called from rewardDistribution contract. 
+     */
     function updateRewardAmount()
         external
         override
@@ -71,7 +128,8 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
         for (uint256 i; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             Reward storage r = rewardData[token];
-            uint256 unseen = IERC20(token).balanceOf(address(this)) - r.balance;
+            uint256 unseen = IERC20Upgradeable(token).balanceOf(address(this)) -
+                r.balance;
             if (unseen > 0) {
                 _notifyRewardAmount(r, unseen);
                 emit RewardAdded(token, unseen);
@@ -79,29 +137,14 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
         }
     }
 
-    function _notifyRewardAmount(Reward storage r, uint256 reward) internal {
-        if (block.timestamp >= r.periodFinish) {
-            r.rewardRate = reward / REWARDS_DURATION;
-        } else {
-            uint256 remaining = r.periodFinish - block.timestamp;
-            uint256 leftover = remaining * r.rewardRate;
-            r.rewardRate = (reward + leftover) / REWARDS_DURATION;
-        }
-        r.lastUpdateTime = block.timestamp;
-        r.periodFinish = block.timestamp + REWARDS_DURATION;
-        r.balance += reward;
-    }
-
+    /**
+     @notice set reward duration. 
+     */
     function setRewardsDuration(uint256 _rewardsDuration) external onlyOwner {
-        for (uint256 i; i < rewardTokens.length; i++) {
-            address token = rewardTokens[i];
-            Reward storage r = rewardData[token];
-
-            require(
-                block.timestamp > r.periodFinish,
-                "Previous rewards period must be complete before changing the duration for the new period"
-            );
-        }
+        require(
+            _rewardsDuration > 0,
+            "reward durationi should be longer than 0"
+        );
         REWARDS_DURATION = _rewardsDuration;
         emit RewardsDurationUpdated(REWARDS_DURATION);
     }
@@ -121,7 +164,10 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
         whenNotPaused
         updateReward(msg.sender)
     {
-        require(amount > 0, "Cannot stake 0");
+        require(
+            amount >= 1 ether,
+            "deposit sigKSP amount should be bigger than 1 ether"
+        );
         totalSupply += amount;
         balanceOf[msg.sender] += amount;
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
@@ -129,8 +175,9 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
     }
 
     function withdraw(uint256 amount)
-        public
+        external
         nonReentrant
+        whenNotPaused
         updateReward(msg.sender)
     {
         require(amount > 0, "Cannot withdraw 0");
@@ -141,14 +188,20 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
         emit Withdrawn(msg.sender, amount);
     }
 
-    function claimReward() public nonReentrant updateReward(msg.sender) {
+    function claimReward()
+        public
+        nonReentrant
+        whenNotPaused
+        updateReward(msg.sender)
+    {
         for (uint256 i; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             Reward storage r = rewardData[token];
             // reward 업데이트가 지금으로부터 한 시간 전 보다 더되었으면 새로운 리워드가 있는지 확인을 해라.
             if (block.timestamp + REWARDS_DURATION > r.periodFinish + 3600) {
-                uint256 unseen = IERC20(token).balanceOf(address(this)) -
-                    r.balance;
+                uint256 unseen = IERC20Upgradeable(token).balanceOf(
+                    address(this)
+                ) - r.balance;
                 if (unseen > 0) {
                     _notifyRewardAmount(r, unseen);
                     emit RewardAdded(token, unseen);
@@ -158,7 +211,7 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
             if (reward > 0) {
                 rewards[msg.sender][token] = 0;
                 r.balance -= reward;
-                IERC20(token).safeTransfer(msg.sender, reward);
+                IERC20Upgradeable(token).safeTransfer(msg.sender, reward);
                 emit RewardPaid(msg.sender, token, reward);
             }
         }
@@ -171,8 +224,9 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
             Reward storage r = rewardData[token];
             // reward 업데이트가 지금으로부터 한 시간 전 보다 더되었으면 새로운 리워드가 있는지 확인을 해라.
             if (block.timestamp + REWARDS_DURATION > r.periodFinish + 3600) {
-                uint256 unseen = IERC20(token).balanceOf(address(this)) -
-                    r.balance;
+                uint256 unseen = IERC20Upgradeable(token).balanceOf(
+                    address(this)
+                ) - r.balance;
                 if (unseen > 0) {
                     _notifyRewardAmount(r, unseen);
                     emit RewardAdded(token, unseen);
@@ -182,10 +236,23 @@ contract SigKSPStaking is Ownable, ReentrancyGuard, Pausable, ISigKSPStaking {
             if (reward > 0) {
                 rewards[msg.sender][token] = 0;
                 r.balance -= reward;
-                IERC20(token).safeTransfer(msg.sender, reward);
+                IERC20Upgradeable(token).safeTransfer(msg.sender, reward);
                 emit RewardPaid(msg.sender, token, reward);
             }
         }
+    }
+
+    function _notifyRewardAmount(Reward storage r, uint256 reward) internal {
+        if (block.timestamp >= r.periodFinish) {
+            r.rewardRate = reward / REWARDS_DURATION;
+        } else {
+            uint256 remaining = r.periodFinish - block.timestamp;
+            uint256 leftover = remaining * r.rewardRate;
+            r.rewardRate = (reward + leftover) / REWARDS_DURATION;
+        }
+        r.lastUpdateTime = block.timestamp;
+        r.periodFinish = block.timestamp + REWARDS_DURATION;
+        r.balance += reward;
     }
 
     /* ========== View Function  ========== */

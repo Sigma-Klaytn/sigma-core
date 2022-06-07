@@ -1,9 +1,12 @@
 const {
     makeErc20Token,
-    makeSigKSPStaking,
     MockERC20,
-    SigKSPStaking
-} = require('./Utils/Sigma');
+    SigKSPStakingV1,
+    SigKSPStakingV2_Test,
+    makeUUPSProxy,
+    makeSigKSPStakingV1,
+    makeSigKSPStakingV2_Test
+} = require('../Utils/Sigma');
 
 const {
     expectAlmostEqualMantissa,
@@ -13,11 +16,11 @@ const {
     BN,
     expectEqual,
     time
-} = require('./Utils/JS');
+} = require('../Utils/JS');
 const oneMantissa = new BN(10).pow(new BN(18));
 const MAX_UINT_256 = new BN(2).pow(new BN(256)).sub(new BN(1));
 
-contract('SigKSPStaking', function (accounts) {
+contract('SigKSPStakingV1', function (accounts) {
     describe('SigKSP Staking Test.', () => {
         //--network baobab 이나 local 만 테스트 가능.
         let userA = accounts[0];
@@ -27,6 +30,8 @@ contract('SigKSPStaking', function (accounts) {
         let SIGToken;
         let KSPToken;
 
+        let sigKSPStakingImpl;
+        let sigKSPStakingProxy;
         let sigKSPStaking;
 
         before(async () => {
@@ -60,13 +65,20 @@ contract('SigKSPStaking', function (accounts) {
 
         it('Owner set sigKSPStaking Contract', async () => {
             //1. userA deploy contract.
-            sigKSPStaking = await makeSigKSPStaking({ from: userA });
+            sigKSPStakingImpl = await makeSigKSPStakingV1()
+            sigKSPStakingProxy = await makeUUPSProxy(sigKSPStakingImpl.address, "0x")
+            sigKSPStaking = await SigKSPStakingV1.at(sigKSPStakingProxy.address)
+
+            await sigKSPStaking.initialize()
 
             //2. userA set staking token and reward token.
-            await sigKSPStaking.setAddresses(sigKSPToken.address, [
+            await sigKSPStaking.setInitialInfo(sigKSPToken.address, [
                 SIGToken.address,
-                KSPToken.address
-            ]);
+                KSPToken.address,
+
+            ], new BN(86400 * 7),
+                userA// reward distributor
+            );
 
             //3. check if there is no ownership after setAdddress.
             expectEqual(await sigKSPStaking.owner(), userA);
@@ -116,8 +128,6 @@ contract('SigKSPStaking', function (accounts) {
             // );
 
             // If setRewardsDistribution has not been set yet, it reverts.
-            await expectRevert.unspecified(sigKSPStaking.updateRewardAmount());
-
             await sigKSPStaking.setRewardsDistribution(userA);
 
             let receipt = await sigKSPStaking.updateRewardAmount();
@@ -185,7 +195,6 @@ contract('SigKSPStaking', function (accounts) {
             });
 
             await time.increase(time.duration.hours(1))
-
             receipt = await sigKSPStaking.stake(bnMantissa(200), {
                 from: userB,
                 gas: 3000000
@@ -239,7 +248,7 @@ contract('SigKSPStaking', function (accounts) {
                 await sigKSPStaking.rewards(userA, SIGToken.address),
                 0
             );
-            let receipt = await sigKSPStaking.claimReward({ from: userA, gas: 3000000 });
+            let receipt = await sigKSPStaking.claimReward({ from: userA });
 
             console.log(
                 '[After Claim] UserA SIG Token Balance : ',
@@ -255,7 +264,9 @@ contract('SigKSPStaking', function (accounts) {
                 (await KSPToken.balanceOf(userB)).toString()
             );
 
-            let receipt = await sigKSPStaking.withdraw((await sigKSPStaking.balanceOf(userB)), { from: userB, gas: 3000000 });
+            let userBBalance = await sigKSPStaking.balanceOf(userB)
+            console.log(userBBalance.toString(), 'here!!!')
+            let receipt = await sigKSPStaking.withdraw(userBBalance, { from: userB });
 
             expectEvent(receipt, 'UpdateReward', {
                 rewardToken: KSPToken.address,
@@ -272,8 +283,25 @@ contract('SigKSPStaking', function (accounts) {
                 '[After Claim] UserB KSP Token Balance : ',
                 (await KSPToken.balanceOf(userB)).toString()
             );
-        });
+
+            // UPGRADE TEST 
+            let sigKSPStakingImpl2 = await makeSigKSPStakingV2_Test();
+            await sigKSPStaking.upgradeTo(sigKSPStakingImpl2.address)
+            sigKSPStaking = await SigKSPStakingV2_Test.at(sigKSPStakingProxy.address);
+
+            await expectRevert(sigKSPStaking.stake(new BN(10000), { from: userA }), "deposit sigKSP amount should be bigger than 1 ether")
+
+
+            //1. Mint 100 sigKSP to UserA and stake.
+            await sigKSPToken.mint(bnMantissa(100), { from: userA });
+
+            await sigKSPStaking.stake(bnMantissa(100), {
+                from: userA
+            });
+        })
+
     });
+
 });
 
 function printReward(rewardData) {

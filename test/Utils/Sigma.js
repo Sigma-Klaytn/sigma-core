@@ -43,6 +43,9 @@ const xSigFarmV1 = artifacts.require('xSigFarmV1')
 const xSigFarmV2_Test = artifacts.require('xSigFarmV2_Test')
 const SigKSPFarmV1 = artifacts.require('SigKSPFarmV1')
 const SigKSPFarmV2_Test = artifacts.require('SigKSPFarmV2_Test')
+const SigKSPStakingV1 = artifacts.require('SigKSPStakingV1')
+const SigKSPStakingV2_Test = artifacts.require('SigKSPStakingV2_Test')
+
 
 
 
@@ -167,6 +170,13 @@ async function makeSigKSPFarmV2_Test(opts = {}) {
     return await SigKSPFarmV2_Test.new()
 }
 
+async function makeSigKSPStakingV1(opts = {}) {
+    return await SigKSPStakingV1.new()
+}
+async function makeSigKSPStakingV2_Test(opts = {}) {
+    return await SigKSPStakingV2_Test.new()
+}
+
 
 module.exports = {
     MockERC20,
@@ -200,6 +210,8 @@ module.exports = {
     xSigFarmV2_Test,
     SigKSPFarmV1,
     SigKSPFarmV2_Test,
+    SigKSPStakingV1,
+    SigKSPStakingV2_Test,
     makeErc20Token,
     makeDepositingVault,
     makeVault,
@@ -230,5 +242,7 @@ module.exports = {
     makexSigFarmV1,
     makexSigFarmV2_Test,
     makeSigKSPFarmV1,
-    makeSigKSPFarmV2_Test
+    makeSigKSPFarmV2_Test,
+    makeSigKSPStakingV1,
+    makeSigKSPStakingV2_Test
 };
