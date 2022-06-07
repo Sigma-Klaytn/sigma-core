@@ -203,6 +203,7 @@ contract LpFarmV1 is
             _rewardPerBlock > 0,
             "reward per block should be bigger than 0"
         );
+        _massUpdatePools();
         rewardPerBlock = _rewardPerBlock;
         uint256 sigBalance = sig.balanceOf(address(this));
         endBlock = startBlock + (sigBalance / rewardPerBlock);
@@ -246,6 +247,7 @@ contract LpFarmV1 is
         whenNotPaused
         nonReentrant
     {
+        require(_amount > 0, "Deposit lp amount should be bigger than 0");
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         _updatePool(_pid);

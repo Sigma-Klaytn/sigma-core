@@ -1,25 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.9;
 
-import "./dependencies/SafeERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "./interfaces/sigma/IvxERC20.sol";
-import "./interfaces/sigma/ISigKSPFarm.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "../interfaces/sigma/IvxERC20.sol";
+import "../interfaces/sigma/ISigKSPFarm.sol";
 
 /// @notice  Farm distributes the sig rewards based on staked sigKSP to each user.
 /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
 // Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
-contract SigKSPFarm is Ownable, ISigKSPFarm {
-    using SafeERC20 for IERC20;
+contract SigKSPFarmV1 is
+    Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable,
+    ISigKSPFarm
+{
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+
+    /* ========== STATE VARIABLES ========== */
 
     IvxERC20 public vxSIG;
 
     /// @notice address of sigKSP token contract.
-    IERC20 public sigKSP;
+    IERC20Upgradeable public sigKSP;
     /// @notice Address of the sig Token contract.
-    IERC20 public sig;
+    IERC20Upgradeable public sig;
     /// @notice Last block number that ERC20s distribution occurs.
     uint256 public lastRewardBlock;
     /// @notice  Accumulated ERC20s per share, times 1e36.
@@ -69,15 +82,112 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
         uint256 endBlock
     );
 
+    /* ========== Restricted Function  ========== */
+
+    /**
+        @notice Initialize UUPS upgradeable smart contract.
+     */
+    function initialize() external initializer {
+        __Ownable_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+    }
+
+    /**
+        @notice restrict upgrade to only owner.
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        virtual
+        override
+        onlyOwner
+    {}
+
+    /**
+        @notice pause contract functions.
+     */
+    function pause() external onlyOwner whenNotPaused {
+        _pause();
+    }
+
+    /**
+        @notice unpause contract functions.
+     */
+    function unpause() external onlyOwner whenPaused {
+        _unpause();
+    }
+
+    /**
+     @notice sets initialInfo of the contract.
+     */
+    function setInitialInfo(
+        address _sig,
+        address _sigKSP,
+        address _vxSIG,
+        uint256 _rewardPerBlock,
+        uint256 _startBlock,
+        uint256 _baseAllocPoint,
+        uint256 _boostAllocPoint
+    ) external onlyOwner {
+        require(
+            _startBlock > block.number,
+            "Start block should be in the future"
+        );
+        sig = IERC20Upgradeable(_sig);
+        vxSIG = IvxERC20(_vxSIG);
+        sigKSP = IERC20Upgradeable(_sigKSP);
+        rewardPerBlock = _rewardPerBlock;
+        startBlock = _startBlock;
+        endBlock = _startBlock;
+        lastRewardBlock = _startBlock;
+        boostLastRewardBlock = _startBlock;
+
+        baseAllocPoint = _baseAllocPoint;
+        boostAllocPoint = _boostAllocPoint;
+        totalAllocPoint = baseAllocPoint + boostAllocPoint;
+
+        emit InitialInfoSet(rewardPerBlock, startBlock, endBlock);
+    }
+
+    /**
+     @notice sets baseAllocPoint and boostAllocPoint of the contract.
+     */
+    function setBaseAndBoostAllocPoint(
+        uint256 _baseAllocPoint,
+        uint256 _boostAllocPoint
+    ) external onlyOwner {
+        _updateReward();
+        baseAllocPoint = _baseAllocPoint;
+        boostAllocPoint = _boostAllocPoint;
+        totalAllocPoint = baseAllocPoint + boostAllocPoint;
+    }
+
+    /**
+     @notice set rewardPerBlock. It will change endblock as well.
+     */
+    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
+        require(
+            _rewardPerBlock > 0,
+            "reward per block should be bigger than 0"
+        );
+        _updateReward();
+        rewardPerBlock = _rewardPerBlock;
+        uint256 sigBalance = sig.balanceOf(address(this));
+        endBlock = startBlock + sigBalance / rewardPerBlock;
+
+        emit RewardPerBlockSet(rewardPerBlock, endBlock);
+    }
+
     /* ========== External & Public Function  ========== */
 
     /**
       @notice deposit sigKSP token in the pool
       @param _amount amount of the sigKSP token to deposit
      */
-    function deposit(uint256 _amount) external {
+    function deposit(uint256 _amount) external whenNotPaused nonReentrant {
+        require(_amount > 0, "Deposit sigKSP amount should be bigger than 0");
         UserInfo storage user = userInfo[msg.sender];
-        updateReward();
+        _updateReward();
         if (user.amount > 0) {
             uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
                 user.rewardDebt;
@@ -109,13 +219,13 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
       @notice withdraw sigKSP token and gets pending token.
       @param _amount amount of the sigKSP token to withdraw
      */
-    function withdraw(uint256 _amount) external {
+    function withdraw(uint256 _amount) external whenNotPaused nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
         require(
             user.amount >= _amount,
             "withdraw: can't withdraw more than deposit"
         );
-        updateReward();
+        _updateReward();
 
         uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
             user.rewardDebt;
@@ -148,7 +258,7 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
     /**
       @notice claim pending sig rewards.
      */
-    function claim() external {
+    function claim() external whenNotPaused nonReentrant {
         UserInfo storage user = userInfo[msg.sender];
         require(user.amount > 0, "User didn't deposit in this pool.");
         uint256 pendingAmount = basePending(msg.sender);
@@ -157,7 +267,7 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
         }
         require(pendingAmount > 0, "claim: no rewards to claim");
 
-        updateReward();
+        _updateReward();
         _transferSIG(msg.sender, pendingAmount);
 
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
@@ -173,7 +283,7 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
       @notice update boost weight of the user. 
       @notice This will be called from xSIGFarm if user activate/deactivate boost.
      */
-    function updateBoostWeight() external override {
+    function updateBoostWeight() external override whenNotPaused nonReentrant {
         UserInfo memory user = userInfo[msg.sender];
         //0. if user has amount
         if (user.amount > 0) {
@@ -184,7 +294,7 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
     /**
       @notice update pool both with base,boost
      */
-    function updateReward() public {
+    function updateReward() public whenNotPaused nonReentrant {
         _updateBaseReward();
         _updateBoostReward();
     }
@@ -203,68 +313,15 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
         emit Funded(msg.sender, _amount, endBlock);
     }
 
-    /* ========== Restricted Function  ========== */
-    /**
-     @notice sets initialInfo of the contract.
-     */
-    function setInitialInfo(
-        IERC20 _sig,
-        IERC20 _sigKSP,
-        IvxERC20 _vxSIG,
-        uint256 _rewardPerBlock,
-        uint256 _startBlock,
-        uint256 _baseAllocPoint,
-        uint256 _boostAllocPoint
-    ) external onlyOwner {
-        require(
-            _startBlock > block.number,
-            "Start block should be in the future"
-        );
-        sig = _sig;
-        vxSIG = _vxSIG;
-        sigKSP = _sigKSP;
-        rewardPerBlock = _rewardPerBlock;
-        startBlock = _startBlock;
-        endBlock = _startBlock;
-        lastRewardBlock = _startBlock;
-        boostLastRewardBlock = _startBlock;
-
-        baseAllocPoint = _baseAllocPoint;
-        boostAllocPoint = _boostAllocPoint;
-        totalAllocPoint = baseAllocPoint + boostAllocPoint;
-
-        emit InitialInfoSet(rewardPerBlock, startBlock, endBlock);
-    }
-
-    /**
-     @notice sets baseAllocPoint and boostAllocPoint of the contract.
-     */
-    function setBaseAndBoostAllocPoint(
-        uint256 _baseAllocPoint,
-        uint256 _boostAllocPoint
-    ) external onlyOwner {
-        updateReward();
-        baseAllocPoint = _baseAllocPoint;
-        boostAllocPoint = _boostAllocPoint;
-        totalAllocPoint = baseAllocPoint + boostAllocPoint;
-    }
-
-    /**
-     @notice set rewardPerBlock. It will change endblock as well.
-     */
-    function setRewardPerBlock(uint256 _rewardPerBlock) external onlyOwner {
-        require(
-            _rewardPerBlock > 0,
-            "reward per block should be bigger than 0"
-        );
-        rewardPerBlock = _rewardPerBlock;
-        uint256 sigBalance = sig.balanceOf(address(this));
-        endBlock = startBlock + sigBalance / rewardPerBlock;
-
-        emit RewardPerBlockSet(rewardPerBlock, endBlock);
-    }
-
     /* ========== Internal & Private Function  ========== */
+
+    /**
+      @notice update pool both with base,boost
+     */
+    function _updateReward() private {
+        _updateBaseReward();
+        _updateBoostReward();
+    }
 
     /**
       @notice update boost weight of all existing pool
