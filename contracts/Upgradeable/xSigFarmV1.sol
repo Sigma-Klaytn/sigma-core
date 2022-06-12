@@ -244,6 +244,17 @@ contract xSigFarmV1 is
         _claim(msg.sender);
     }
 
+    /**
+     @notice update user's vxSIG of lpFarm and sigKSPFarm.
+     */
+    function activateBoost() external whenNotPaused nonReentrant {
+        require(isUser(msg.sender), "User didn't stake any xSIG.");
+        require(vxSIG.balanceOf(msg.sender) > 0, "No vxSIG to activate boost");
+
+        lpFarm.updateBoostWeight();
+        sigKSPFarm.updateBoostWeight();
+    }
+
     /* ========== Internal & Private Function  ========== */
 
     /**
