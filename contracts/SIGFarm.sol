@@ -6,7 +6,9 @@
 // import "./dependencies/SafeERC20.sol";
 // import "./interfaces/sigma/IxSIGToken.sol";
 // import "./interfaces/sigma/ISigFarm.sol";
+contract SIGFarm {
 
+}
 // contract SIGFarm is Ownable, ISigFarm {
 //     using SafeERC20 for IERC20;
 //     using SafeERC20 for IxSIGToken;
@@ -100,7 +102,7 @@
 //     }
 
 //     /**
-//         @notice Claim SIG which unlocking period has been ended. 
+//         @notice Claim SIG which unlocking period has been ended.
 //      */
 //     function claimUnlockedSIG() external {
 //         (
@@ -147,7 +149,7 @@
 //     /* ========== Internal Function  ========== */
 
 //     /**
-//         @notice Update user's withdrawable info when inidividual unlocking is expired. 
+//         @notice Update user's withdrawable info when inidividual unlocking is expired.
 //         @param _user address of user which update withdrawable SIG array.
 //      */
 //     function _computeWithdrawableSIG(address _user)

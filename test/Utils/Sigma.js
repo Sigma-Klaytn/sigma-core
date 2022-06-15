@@ -47,6 +47,7 @@ const SigKSPStakingV1 = artifacts.require('SigKSPStakingV1')
 const SigKSPStakingV2_Test = artifacts.require('SigKSPStakingV2_Test')
 const SigmaVoterV1 = artifacts.require('SigmaVoterV1')
 const SigmaVoterV2_Test = artifacts.require('SigmaVoterV2_Test')
+const LpFarmV2 = artifacts.require('LpFarmV2')
 
 
 
@@ -185,6 +186,10 @@ async function makeSigmaVoterV2_Test(opts = {}) {
     return await SigmaVoterV2_Test.new()
 }
 
+async function makeLpFarmV2(opts = {}) {
+    return await LpFarmV2.new()
+}
+
 
 module.exports = {
     MockERC20,
@@ -211,6 +216,7 @@ module.exports = {
     UpgradeableTokenSaleV1,
     UpgradeableTokenSaleV2,
     LpFarmV1,
+    LpFarmV2,
     LpFarmV2_Test,
     SigFarmV1,
     SigFarmV2_Test,
@@ -256,5 +262,6 @@ module.exports = {
     makeSigKSPStakingV1,
     makeSigKSPStakingV2_Test,
     makeSigmaVoterV1,
-    makeSigmaVoterV2_Test
+    makeSigmaVoterV2_Test,
+    makeLpFarmV2
 };
