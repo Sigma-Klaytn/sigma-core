@@ -255,4 +255,25 @@ contract SigFarmV1 is
             return (sigAmount * 1e7) / xSIGAmount;
         }
     }
+
+    /**
+        @notice Update user's withdrawable info when inidividual unlocking is expired. 
+        @param _user address of user which update withdrawable SIG array.
+     */
+    function getUserWithdrawInfos(address _user)
+        external
+        view
+        returns (WithdrawInfo[] memory)
+    {
+        WithdrawInfo[] memory withdrawableInfos = withdrawInfoOf[_user];
+        WithdrawInfo[] memory info = new WithdrawInfo[](
+            withdrawableInfos.length
+        );
+        for (uint256 i = 0; i < withdrawableInfos.length; i++) {
+            if (!withdrawableInfos[i].isWithdrawn) {
+                info[i] = withdrawableInfos[i];
+            }
+        }
+        return info;
+    }
 }

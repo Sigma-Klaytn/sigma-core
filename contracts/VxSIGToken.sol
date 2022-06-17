@@ -2,19 +2,27 @@
 
 pragma solidity ^0.8.9;
 
-import "./interfaces/sigma/IvxERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+
+interface IvxERC20 {
+    function totalSupply() external view returns (uint256);
+
+    function balanceOf(address account) external view returns (uint256);
+
+    function mint(address account, uint256 amount) external;
+
+    function burn(address account, uint256 amount) external;
+}
 
 /// @title VxSIG
 /// @notice Modified version of ERC20 where transfers and allowances are disabled.
 contract vxSIGToken is IvxERC20, Ownable {
-    string public constant name = "Sigma Voting Power Token"; // Can be modified.
+    string public constant name = "Sigma Voting Power Token";
     string public constant symbol = "vxSIG";
     uint8 public constant decimals = 18;
     uint256 public override totalSupply;
 
     mapping(address => uint256) public override balanceOf;
-    mapping(address => mapping(address => uint256)) private allowances;
     mapping(address => bool) public operators;
     /**
      * @dev Emitted when `value` tokens are burned and minted
