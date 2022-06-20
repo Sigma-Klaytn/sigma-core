@@ -108,10 +108,10 @@ contract xSIGFarm is Ownable, IxSIGFarm {
 
         uint256 userVotedCount = sigmaVoter.getUserVotesCount(msg.sender);
         if (userVotedCount > 0) {
-            sigmaVoter.deleteAllPoolVote();
+            sigmaVoter.deleteAllPoolVoteFromXSIGFarm(msg.sender);
         }
 
-        lpFarm.updateBoostWeight();
+        lpFarm.updateBoostWeight(msg.sender);
         sigKSPFarm.updateBoostWeight();
 
         emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);

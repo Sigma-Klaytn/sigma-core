@@ -2,5 +2,5 @@
 pragma solidity ^0.8.9;
 
 interface ISigKSPFarm {
-    function updateBoostWeight() external;
+    function updateBoostWeight(address _user) external;
 }

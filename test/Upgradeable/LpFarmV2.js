@@ -376,7 +376,7 @@ contract('LpFarmV2', function (accounts) {
             console.log('oldPoolBInfo : totalBoostWeight  -> ', oldPoolBInfo[7].toString())
 
             //Update Boost Weight 
-            await lpFarm.updateBoostWeight({ from: userA });
+            await lpFarm.updateBoostWeight(userA, { from: userA });
 
             let newPoolAInfo = await lpFarm.poolInfo(new BN(0));
             let newPoolBInfo = await lpFarm.poolInfo(new BN(1));
@@ -388,7 +388,7 @@ contract('LpFarmV2', function (accounts) {
 
             // 2. User B Update Boost weight 
             //Update Boost Weight 
-            await lpFarm.updateBoostWeight({ from: userB });
+            await lpFarm.updateBoostWeight(userB, { from: userB });
 
             let userB_newPoolAInfo = await lpFarm.poolInfo(new BN(0));
             let userB_newPoolBInfo = await lpFarm.poolInfo(new BN(1));
@@ -406,7 +406,7 @@ contract('LpFarmV2', function (accounts) {
             expectEqual(await vxSIGToken.balanceOf(userB), new BN(0));
 
             //Update Boost Weight 
-            await lpFarm.updateBoostWeight({ from: userB });
+            await lpFarm.updateBoostWeight(userB, { from: userB });
 
             userB_newPoolAInfo = await lpFarm.poolInfo(new BN(0));
             userB_newPoolBInfo = await lpFarm.poolInfo(new BN(1));
@@ -419,11 +419,11 @@ contract('LpFarmV2', function (accounts) {
             // 4. User A add more vxSIG and update boost weight. 
             //Fund vxSIGToken worth 100
             await vxSIGToken.mint(userA, bnMantissa(100), { from: root }); // 100 vxSIG
-            await lpFarm.updateBoostWeight({ from: userA });
+            await lpFarm.updateBoostWeight(userA, { from: userA });
 
             // 5. User B add more vxSIG and udpate boost weight
             await vxSIGToken.mint(userB, bnMantissa(40), { from: root }); // 100 vxSIG
-            await lpFarm.updateBoostWeight({ from: userB });
+            await lpFarm.updateBoostWeight(userB, { from: userB });
 
 
         })

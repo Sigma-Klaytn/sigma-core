@@ -173,11 +173,11 @@ contract SigKSPFarm is Ownable, ISigKSPFarm {
       @notice update boost weight of the user. 
       @notice This will be called from xSIGFarm if user activate/deactivate boost.
      */
-    function updateBoostWeight() external override {
-        UserInfo memory user = userInfo[msg.sender];
+    function updateBoostWeight(address _user) external override {
+        UserInfo memory user = userInfo[_user];
         //0. if user has amount
         if (user.amount > 0) {
-            _updateBoostWeight(msg.sender);
+            _updateBoostWeight(_user);
         }
     }
 

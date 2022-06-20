@@ -231,7 +231,7 @@ contract xSigFarmV1 is
         }
 
         lpFarm.updateBoostWeight(msg.sender);
-        sigKSPFarm.updateBoostWeight();
+        sigKSPFarm.updateBoostWeight(msg.sender);
 
         emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
     }
@@ -252,7 +252,7 @@ contract xSigFarmV1 is
         require(vxSIG.balanceOf(msg.sender) > 0, "No vxSIG to activate boost");
 
         lpFarm.updateBoostWeight(msg.sender);
-        sigKSPFarm.updateBoostWeight();
+        sigKSPFarm.updateBoostWeight(msg.sender);
     }
 
     /* ========== Internal & Private Function  ========== */
