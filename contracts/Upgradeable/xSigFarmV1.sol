@@ -227,7 +227,7 @@ contract xSigFarmV1 is
 
         uint256 userVotedCount = sigmaVoter.getUserVotesCount(msg.sender);
         if (userVotedCount > 0) {
-            sigmaVoter.deleteAllPoolVote();
+            sigmaVoter.deleteAllPoolVoteFromXSIGFarm(msg.sender);
         }
 
         lpFarm.updateBoostWeight();
