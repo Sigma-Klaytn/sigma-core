@@ -46,12 +46,14 @@ contract LockdropLpFarmProxyV1 is
     function setInitialInfo(
         address _lpToken,
         address _lockdrop,
-        address _lpFarm
+        address _lpFarm,
+        uint256 _totalLockdropDeposit
     ) external onlyOwner {
         lpToken = IERC20Upgradeable(_lpToken);
         lockdrop = ILockdrop(_lockdrop);
         lpFarm = ILpFarm(_lpFarm);
-        totalLockdropDeposit = 227100212865627939698517;
+        // totalLockdropDeposit = 227100212865627939698517;
+        totalLockdropDeposit = _totalLockdropDeposit;
     }
 
     /* ========== External & Public FUNCTIONS ========== */
@@ -64,6 +66,7 @@ contract LockdropLpFarmProxyV1 is
         require(!isForwarded[msg.sender], "already forwarded");
 
         uint256 withdrawableLpToken = getWithdrawableLPTokenAmount();
+        require(withdrawableLpToken > 0, "No withdrawable Lp Token");
         (
             uint256 amount, // deposited KSP amount
             uint256 weight, // weight = lockMonth * amount
@@ -73,15 +76,13 @@ contract LockdropLpFarmProxyV1 is
             bool isLPTokensClaimed
         ) = lockdrop.depositOf(msg.sender);
 
-        if (withdrawableLpToken > 0) {
-            lpFarm.forwardLpTokensFromLockdrop(
-                msg.sender,
-                withdrawableLpToken,
-                lockMonth
-            );
+        lpFarm.forwardLpTokensFromLockdrop(
+            msg.sender,
+            withdrawableLpToken,
+            lockMonth
+        );
 
-            isForwarded[msg.sender] = true;
-        }
+        isForwarded[msg.sender] = true;
     }
 
     /* ========== VIEW FUNCTIONS ========== */
