@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 interface ILpFarm {
-    function updateBoostWeight() external;
+    function updateBoostWeight(address _user) external;
 
     function forwardLpTokensFromLockdrop(
         address _user,

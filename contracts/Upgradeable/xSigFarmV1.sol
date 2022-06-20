@@ -230,7 +230,7 @@ contract xSigFarmV1 is
             sigmaVoter.deleteAllPoolVoteFromXSIGFarm(msg.sender);
         }
 
-        lpFarm.updateBoostWeight();
+        lpFarm.updateBoostWeight(msg.sender);
         sigKSPFarm.updateBoostWeight();
 
         emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
@@ -251,7 +251,7 @@ contract xSigFarmV1 is
         require(isUser(msg.sender), "User didn't stake any xSIG.");
         require(vxSIG.balanceOf(msg.sender) > 0, "No vxSIG to activate boost");
 
-        lpFarm.updateBoostWeight();
+        lpFarm.updateBoostWeight(msg.sender);
         sigKSPFarm.updateBoostWeight();
     }
 
