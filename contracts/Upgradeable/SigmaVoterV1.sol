@@ -498,8 +498,12 @@ contract SigmaVoterV1 is
                     poolVotes.length - 1
                 ];
                 poolVotes[poolVoteIndex] = poolVoteToMove;
-                userPoolInfos[_user][poolVoteToMove.pool]
-                    .poolVoteIndex = poolVoteIndex;
+                _setUserPoolInfoPoolVoteIndex(
+                    _user,
+                    poolVoteToMove.pool,
+                    poolVoteIndex
+                );
+
                 poolVotes.pop();
             } else {
                 delete userPoolVotes[_user];
@@ -507,6 +511,14 @@ contract SigmaVoterV1 is
         }
 
         emit VoteWithdrawn(_user, _pool, _vxSIGAmount, newPoolVxSIGAmount);
+    }
+
+    function _setUserPoolInfoPoolVoteIndex(
+        address _user,
+        address _poolAddress,
+        uint256 _newPoolVoteIndex
+    ) private {
+        userPoolInfos[_user][_poolAddress].poolVoteIndex = _newPoolVoteIndex;
     }
 
     function _updatePoolVxSIGAmount(address _pool, uint256 newVxSIGAmount)
