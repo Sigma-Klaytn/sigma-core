@@ -208,7 +208,7 @@ contract SigFarmV1 is
         for (uint256 i = 0; i < withdrawableInfos.length; i++) {
             WithdrawInfo storage withdrawInfo = withdrawableInfos[i];
             if (!withdrawInfo.isWithdrawn) {
-                if (withdrawInfo.unlockTime < block.timestamp) {
+                if (withdrawInfo.unlockTime <= block.timestamp) {
                     withdrawableSIG += withdrawInfo.SIGAmount;
                     totalBurningxSIG += withdrawInfo.xSIGAmount;
                     withdrawInfo.isWithdrawn = true;
