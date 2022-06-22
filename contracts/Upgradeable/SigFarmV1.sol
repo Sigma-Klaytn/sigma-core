@@ -108,7 +108,7 @@ contract SigFarmV1 is
         require(_amount > 0, "Stake SIG amount should be bigger than 0");
         require(
             SIG.balanceOf(msg.sender) > _amount,
-            "Not enough SIG amount to stake.s"
+            "Not enough SIG amount to stake."
         );
         SIG.safeTransferFrom(msg.sender, address(this), _amount);
         uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG - _amount;

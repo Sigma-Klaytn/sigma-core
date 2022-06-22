@@ -36,7 +36,7 @@ interface ILpFarm {
 /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
 /// @notice LpFarmV2 is different from LpFarmV1 in a way that new features for handling Lockdrop forwarded Lp tokens.
 /// changed Few variables added, UserInfo struct, few functions added.
-contract LpFarmV2 is
+contract LpFarmV3 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
