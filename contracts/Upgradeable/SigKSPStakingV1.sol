@@ -178,6 +178,7 @@ contract SigKSPStakingV1 is
         updateReward(msg.sender)
     {
         require(amount > 0, "Cannot withdraw 0");
+        require(balanceOf[msg.sender] >= amount, "Balance is not enough.");
         _claimReward();
         totalSupply -= amount;
         balanceOf[msg.sender] -= amount;
