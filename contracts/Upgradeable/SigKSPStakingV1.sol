@@ -220,7 +220,7 @@ contract SigKSPStakingV1 is
     }
 
     /* ========== Internal & Private Function  ========== */
-    function _claimReward() private updateReward(msg.sender) {
+    function _claimReward() private {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             if (token != address(0)) {
