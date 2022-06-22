@@ -170,10 +170,10 @@ contract SigKSPFarmV1 is
             _rewardPerBlock > 0,
             "reward per block should be bigger than 0"
         );
-        _updateReward();
         rewardPerBlock = _rewardPerBlock;
         uint256 sigBalance = sig.balanceOf(address(this));
         endBlock = startBlock + sigBalance / rewardPerBlock;
+        _updateReward();
 
         emit RewardPerBlockSet(rewardPerBlock, endBlock);
     }
@@ -426,7 +426,7 @@ contract SigKSPFarmV1 is
     /**
      @notice total pending amount on protocol.
      */
-    function totalPending() external view returns (uint256) {
+    function totalProtocolPending() external view returns (uint256) {
         if (block.number <= startBlock) {
             return 0;
         }

@@ -239,8 +239,7 @@ contract LpFarmV3 is
             "reward per block should be bigger than 0"
         );
         rewardPerBlock = _rewardPerBlock;
-        uint256 sigBalance = sig.balanceOf(address(this)) -
-            totalProtocolPending();
+        uint256 sigBalance = sig.balanceOf(address(this));
         endBlock = startBlock + (sigBalance / rewardPerBlock);
         _massUpdatePools();
 
@@ -672,7 +671,7 @@ contract LpFarmV3 is
     /**
      @notice total pending amount on protocol.
      */
-    function totalProtocolPending() public view returns (uint256) {
+    function totalProtocolPending() external view returns (uint256) {
         if (block.number <= startBlock) {
             return 0;
         }
