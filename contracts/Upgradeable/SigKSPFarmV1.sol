@@ -173,6 +173,11 @@ contract SigKSPFarmV1 is
         rewardPerBlock = _rewardPerBlock;
         uint256 sigBalance = sig.balanceOf(address(this));
         endBlock = startBlock + sigBalance / rewardPerBlock;
+        require(
+            endBlock > block.number,
+            "endBlock should be greater than current block number"
+        );
+
         _updateReward();
 
         emit RewardPerBlockSet(rewardPerBlock, endBlock);
