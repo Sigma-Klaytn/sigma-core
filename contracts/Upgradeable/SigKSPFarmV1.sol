@@ -299,7 +299,7 @@ contract SigKSPFarmV1 is
     /**
       @notice update pool both with base,boost
      */
-    function updateReward() public whenNotPaused nonReentrant {
+    function updateReward() external whenNotPaused nonReentrant {
         _updateBaseReward();
         _updateBoostReward();
     }
@@ -308,7 +308,7 @@ contract SigKSPFarmV1 is
       @notice Fund the farm, anyone call fund sig token.
       @param _amount amount of the token to fund.
      */
-    function fund(uint256 _amount) public {
+    function fund(uint256 _amount) external {
         require(block.number < endBlock, "fund: too late, the farm is closed");
         require(_amount > 0, "Funding amount should be bigger than 0");
 
