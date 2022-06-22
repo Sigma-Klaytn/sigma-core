@@ -17,7 +17,9 @@ import "../interfaces/sigma/ILpFarm.sol";
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
 /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
-contract LpFarmV1 is
+/// @notice LpFarmV3 is different from LpFarmV1 in a way that new features for handling Lockdrop forwarded Lp tokens.
+/// changed Few variables added, UserInfo struct, few functions added.
+contract LpFarmV3 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -29,10 +31,13 @@ contract LpFarmV1 is
 
     // Info of each user.
     struct UserInfo {
-        uint256 amount; // How many LP tokens the user has provided.
+        uint256 amount; // How many LP tokens the user has provided. (including lockdrop)
         uint256 rewardDebt; // Reward debt.
         uint256 boostRewardDebt; // Boosted Reward debt
         uint256 boostWeight;
+        uint256 lockdropAmount; // How many lockdrop amount among amount.
+        uint256 lockingPeriod;
+        bool isLockdropLPTokenClaimed;
     }
 
     // Info of each pool.
@@ -73,6 +78,13 @@ contract LpFarmV1 is
     /// @notice The block number when farming ends.
     uint256 public endBlock;
 
+    /// @notice address of lockdrop proxy
+    address public lockdropProxy;
+    /// @notice Timestamp when lockdrop eneded.
+    uint256 public constant LOCKDROP_ENDTIME = 1654527600;
+    /// @notice pool index of sigKSP - KSP
+    uint256 public constant LOCKDROP_POOL_INDEX = 1;
+
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event Claim(address indexed user, uint256 indexed pid, uint256 amount);
@@ -90,6 +102,8 @@ contract LpFarmV1 is
         uint256 startBlock,
         uint256 endBlock
     );
+    event WithdrawLockdropLP(address indexed user, uint256 amount);
+    event LockdropDeposit(address indexed user, uint256 amount);
 
     /* ========== Restricted Function  ========== */
 
@@ -125,6 +139,13 @@ contract LpFarmV1 is
      */
     function setVxSIGAddress(IvxERC20 _vxSIG) external onlyOwner {
         vxSIG = _vxSIG;
+    }
+
+    /**
+     @notice sets vxSIG Address of the contract.
+     */
+    function setLockdropProxy(address _lockdropProxy) external onlyOwner {
+        lockdropProxy = _lockdropProxy;
     }
 
     /**
@@ -192,6 +213,20 @@ contract LpFarmV1 is
             baseTotalAllocPoint,
             boostTotalAllocPoint
         );
+    }
+
+    /**
+      @notice Update the given pool's lp token address.
+      @param _pid pool Id
+      @param _address change address of the pool
+     */
+    function setPoolLpAddress(uint256 _pid, address _address)
+        external
+        onlyOwner
+    {
+        _massUpdatePools();
+
+        poolInfo[_pid].lpToken = IERC20Upgradeable(_address);
     }
 
     /**
@@ -298,7 +333,7 @@ contract LpFarmV1 is
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(
-            user.amount >= _amount,
+            user.amount - user.lockdropAmount >= _amount,
             "withdraw: can't withdraw more than deposit"
         );
         _updatePool(_pid);
@@ -361,11 +396,11 @@ contract LpFarmV1 is
       @notice update boost weight of the user to all pool user voted.
       @notice This will be called from xSIGFarm if user activate boost.
      */
-    function updateBoostWeight() external {
+    function updateBoostWeight(address _user) external override {
         for (uint256 i = 0; i < poolInfo.length; i++) {
-            UserInfo storage user = userInfo[i][msg.sender];
+            UserInfo storage user = userInfo[i][_user];
             if (user.amount > 0) {
-                _updateBoostWeight(msg.sender, i);
+                _updateBoostWeight(_user, i);
             }
         }
     }
@@ -401,6 +436,109 @@ contract LpFarmV1 is
         sig.safeTransferFrom(address(msg.sender), address(this), _amount);
 
         emit Funded(msg.sender, _amount, endBlock);
+    }
+
+    /* ========== Lockdrop related ====================== */
+
+    function forwardLpTokensFromLockdrop(
+        address _user,
+        uint256 _amount,
+        uint256 _lockingPeriod
+    ) external override {
+        require(_amount > 0, "Deposit lp amount should be bigger than 0");
+        require(
+            lockdropProxy == msg.sender,
+            "This function should be called from lockdrop proxy."
+        );
+
+        PoolInfo storage pool = poolInfo[LOCKDROP_POOL_INDEX];
+        UserInfo storage user = userInfo[LOCKDROP_POOL_INDEX][_user];
+        _updatePool(LOCKDROP_POOL_INDEX);
+        if (user.amount > 0) {
+            uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) /
+                1e36) - user.rewardDebt;
+
+            //if user has boost,
+            if (user.boostWeight > 0) {
+                uint256 boostPendingAmount = (user.boostWeight *
+                    pool.boostAccERC20PerShare) /
+                    1e36 -
+                    user.boostRewardDebt;
+
+                pendingAmount += boostPendingAmount;
+            }
+            transferSIG(_user, pendingAmount);
+        }
+
+        pool.lpToken.safeTransferFrom(
+            address(msg.sender),
+            address(this),
+            _amount
+        );
+
+        user.amount += _amount;
+        user.lockdropAmount = _amount;
+        user.lockingPeriod = _lockingPeriod;
+
+        user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
+
+        if (user.boostWeight > 0) {
+            user.boostRewardDebt =
+                (user.boostWeight * pool.boostAccERC20PerShare) /
+                1e36;
+        }
+
+        emit LockdropDeposit(msg.sender, _amount);
+    }
+
+    /**
+        @notice withdrow lockdrop lp token at Lockdrop page 
+    */
+    function withdrawLockdropLPTokens() external nonReentrant whenNotPaused {
+        UserInfo storage user = userInfo[LOCKDROP_POOL_INDEX][msg.sender];
+        require(user.lockdropAmount > 0, "lockdrop amount is not existing.");
+        require(
+            LOCKDROP_ENDTIME + user.lockingPeriod < block.timestamp,
+            "Lock period did not ended yet."
+        );
+        require(
+            !user.isLockdropLPTokenClaimed,
+            "You already claimed Lockdrop LPToken."
+        );
+
+        PoolInfo storage pool = poolInfo[LOCKDROP_POOL_INDEX];
+
+        _updatePool(LOCKDROP_POOL_INDEX);
+
+        uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) / 1e36) -
+            user.rewardDebt;
+
+        //if user has boost,
+        if (user.boostWeight > 0) {
+            uint256 boostPendingAmount = (user.boostWeight *
+                pool.boostAccERC20PerShare) /
+                1e36 -
+                user.boostRewardDebt;
+            pendingAmount += boostPendingAmount;
+        }
+
+        transferSIG(msg.sender, pendingAmount);
+
+        user.amount -= user.lockdropAmount;
+        user.lockdropAmount = 0;
+        user.isLockdropLPTokenClaimed = true;
+
+        user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
+        if (user.boostWeight > 0) {
+            user.boostRewardDebt =
+                (user.boostWeight * pool.boostAccERC20PerShare) /
+                1e36;
+
+            _updateBoostWeight(msg.sender, LOCKDROP_POOL_INDEX);
+        }
+
+        pool.lpToken.safeTransfer(address(msg.sender), user.lockdropAmount);
+        emit WithdrawLockdropLP(msg.sender, user.lockdropAmount);
     }
 
     /* ========== Internal & Private Function  ========== */
@@ -653,5 +791,22 @@ contract LpFarmV1 is
     {
         UserInfo memory user = userInfo[_pid][_user];
         return user.amount;
+    }
+
+    /**
+     @notice withdrawable amount of LP Token for certain pool.
+     */
+    function lockdropWithdrawable(address _user)
+        external
+        view
+        returns (uint256, uint256)
+    {
+        UserInfo memory user = userInfo[LOCKDROP_POOL_INDEX][_user];
+
+        if (LOCKDROP_ENDTIME + user.lockingPeriod < block.timestamp) {
+            return (user.amount - user.lockdropAmount, user.lockdropAmount);
+        } else {
+            return (user.amount - user.lockdropAmount, 0);
+        }
     }
 }

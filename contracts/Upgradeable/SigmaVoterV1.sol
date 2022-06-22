@@ -52,6 +52,8 @@ contract SigmaVoterV1 is
     uint256 public minTopVote; // smallest vote-weight for pools included in `topVotes`
     uint256 public minTopVoteIndex; // `topVotes` index where the smallest vote is stored (always +1 cause it has 0 at first)
 
+    address xSIGFarm; // address of xSIG Farm
+
     struct PoolVote {
         address pool;
         uint256 vxSIGAmount;
@@ -119,7 +121,8 @@ contract SigmaVoterV1 is
         address[] calldata _lpPools,
         address[] calldata _topYieldPools,
         IvxERC20 _vxSIG,
-        uint256 _userMaxVote
+        uint256 _userMaxVote,
+        address _xSIGFarm
     ) external onlyOwner {
         require(
             _topYieldPools.length == TOP_YIELD_POOL_COUNT,
@@ -128,6 +131,7 @@ contract SigmaVoterV1 is
         vxSIG = _vxSIG;
         topYieldPools = _topYieldPools;
         USER_MAX_VOTE_POOL = _userMaxVote;
+        xSIGFarm = _xSIGFarm;
 
         // Add pools
         for (uint256 i = 0; i < _lpPools.length; i++) {
@@ -367,7 +371,7 @@ contract SigmaVoterV1 is
     /**
         @notice withdraw user's all of vxSIG vote.
      */
-    function deleteAllPoolVote() external override whenNotPaused {
+    function deleteAllPoolVote() external whenNotPaused {
         PoolVote[] memory userVotes = userPoolVotes[msg.sender];
         require(userVotes.length > 0, "User didn't vote yet");
 
@@ -378,7 +382,144 @@ contract SigmaVoterV1 is
         emit AllVoteWithdrawn(msg.sender);
     }
 
+    /**
+        @notice withdraw user's all of vxSIG vote.
+     */
+    function deleteAllPoolVoteFromXSIGFarm(address _user)
+        external
+        override
+        whenNotPaused
+    {
+        require(
+            msg.sender == xSIGFarm,
+            "This is not a transaction from xSIGFarm"
+        );
+        PoolVote[] memory userVotes = userPoolVotes[_user];
+        require(userVotes.length > 0, "User didn't vote yet");
+
+        for (uint256 i = 1; i < userVotes.length; i++) {
+            _deletePoolVote(_user, userVotes[i].pool, userVotes[i].vxSIGAmount);
+        }
+
+        emit AllVoteWithdrawn(_user);
+    }
+
     /* ========== Internal & Private Function  ========== */
+    /**
+        @notice withdraw certain amount of vxSIGVote from the pool
+        @param _pool pool address to add. 
+        @param _vxSIGAmount vxSIG Amount to withdraw in ETH not wei. 
+     */
+    function _deletePoolVote(
+        address _user,
+        address _pool,
+        uint256 _vxSIGAmount
+    ) private whenNotPaused {
+        require(isPool(_pool), "This pool is not registred by the admin.");
+        require(
+            userPoolInfos[_user][_pool].isVoted,
+            "User never voted to this pool."
+        );
+
+        totalUsedVxSIG -= _vxSIGAmount;
+        userTotalUsedVxSIG[_user] -= _vxSIGAmount;
+        uint256 newPoolVxSIGAmount = poolInfos[_pool].vxSIGAmount -
+            _vxSIGAmount;
+
+        // copy values to minimize gas fee.
+        uint256 _topVotesLengthMem = topVotesLength;
+        uint256 _minTopVoteMem = minTopVote;
+        uint256 _minTopVoteIndexMem = minTopVoteIndex;
+        uint64[MAX_VOTES_WITH_BUFFER] memory t = topVotes;
+
+        uint256 poolAddressIndex = poolInfos[_pool].listPointer;
+        uint256 poolTopVotesIndex = poolInfos[_pool].topVotesIndex;
+
+        if (newPoolVxSIGAmount == 0) {
+            if (poolTopVotesIndex > 0) {
+                // If this pool was in topVotes
+                if (poolTopVotesIndex == _topVotesLengthMem) {
+                    // If this pool was at the end of the topVotes
+                    delete t[_topVotesLengthMem];
+                } else {
+                    t[poolTopVotesIndex] = t[_topVotesLengthMem];
+                    uint256 addressIndex = t[poolTopVotesIndex] >> 40;
+                    poolInfos[poolAddresses[addressIndex]]
+                        .topVotesIndex = uint8(poolTopVotesIndex);
+                    delete t[_topVotesLengthMem];
+                    if (_minTopVoteIndexMem == _topVotesLengthMem) {
+                        //if minTopVoteIndexMem was the one moved, change the minTopvoteIndex to moved index.
+                        _minTopVoteIndexMem = poolTopVotesIndex;
+                    }
+                }
+                _topVotesLengthMem -= 1;
+                if (_topVotesLengthMem == 0) {
+                    _minTopVoteMem = 0;
+                    _minTopVoteIndexMem = 0;
+                }
+                poolInfos[_pool].topVotesIndex = 0;
+            }
+            _updatePoolVxSIGAmount(_pool, 0);
+        } else {
+            if (poolTopVotesIndex > 0) {
+                t[poolTopVotesIndex] = pack(
+                    poolAddressIndex,
+                    newPoolVxSIGAmount
+                );
+                if (newPoolVxSIGAmount < _minTopVoteMem) {
+                    _minTopVoteMem = newPoolVxSIGAmount;
+                    _minTopVoteIndexMem = poolTopVotesIndex;
+                }
+            }
+            _updatePoolVxSIGAmount(_pool, newPoolVxSIGAmount);
+        }
+
+        topVotes = t;
+        topVotesLength = _topVotesLengthMem;
+        minTopVote = _minTopVoteMem;
+        minTopVoteIndex = _minTopVoteIndexMem;
+
+        uint256 poolVoteIndex = userPoolInfos[_user][_pool].poolVoteIndex;
+        PoolVote storage userPoolVote = userPoolVotes[_user][poolVoteIndex];
+        require(
+            userPoolVote.vxSIGAmount >= _vxSIGAmount,
+            "User didn't vote _vxSIGAmount in this pool"
+        );
+        userPoolVote.vxSIGAmount -= _vxSIGAmount;
+
+        if (userPoolVote.vxSIGAmount == 0) {
+            //delete from userPoolInfos
+            userPoolInfos[_user][_pool].isVoted = false;
+            userPoolInfos[_user][_pool].poolVoteIndex = 0;
+
+            PoolVote[] storage poolVotes = userPoolVotes[_user];
+            if (poolVotes.length != 2) {
+                PoolVote memory poolVoteToMove = poolVotes[
+                    poolVotes.length - 1
+                ];
+                poolVotes[poolVoteIndex] = poolVoteToMove;
+                _setUserPoolInfoPoolVoteIndex(
+                    _user,
+                    poolVoteToMove.pool,
+                    poolVoteIndex
+                );
+
+                poolVotes.pop();
+            } else {
+                delete userPoolVotes[_user];
+            }
+        }
+
+        emit VoteWithdrawn(_user, _pool, _vxSIGAmount, newPoolVxSIGAmount);
+    }
+
+    function _setUserPoolInfoPoolVoteIndex(
+        address _user,
+        address _poolAddress,
+        uint256 _newPoolVoteIndex
+    ) private {
+        userPoolInfos[_user][_poolAddress].poolVoteIndex = _newPoolVoteIndex;
+    }
 
     function _updatePoolVxSIGAmount(address _pool, uint256 newVxSIGAmount)
         internal
