@@ -107,8 +107,8 @@ contract SigFarmV1 is
     function stake(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount > 0, "Stake SIG amount should be bigger than 0");
         require(
-            SIG.balanceOf(msg.sender) > _amount,
-            "Not enough SIG amount to stake.s"
+            SIG.balanceOf(msg.sender) >= _amount,
+            "Not enough SIG amount to stake."
         );
         SIG.safeTransferFrom(msg.sender, address(this), _amount);
         uint256 sigAmount = SIG.balanceOf(address(this)) - pendingSIG - _amount;
@@ -134,7 +134,7 @@ contract SigFarmV1 is
     function unstake(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount > 0, "Redeem xSIG should be bigger than 0");
         require(
-            xSIG.balanceOf(msg.sender) > _amount,
+            xSIG.balanceOf(msg.sender) >= _amount,
             "Not enough xSIG amount to unstake."
         );
         xSIG.safeTransferFrom(msg.sender, address(this), _amount);
@@ -235,7 +235,7 @@ contract SigFarmV1 is
         for (uint256 i = 0; i < withdrawableInfos.length; i++) {
             WithdrawInfo memory withdrawInfo = withdrawableInfos[i];
             if (!withdrawInfo.isWithdrawn) {
-                if (withdrawInfo.unlockTime < block.timestamp) {
+                if (withdrawInfo.unlockTime <= block.timestamp) {
                     withdrawableSIG += withdrawInfo.SIGAmount;
                 }
             }
