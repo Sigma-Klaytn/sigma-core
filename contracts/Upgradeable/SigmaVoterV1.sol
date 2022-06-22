@@ -535,7 +535,7 @@ contract SigmaVoterV1 is
         uint256 _minTopVoteMem = type(uint256).max;
         uint256 _minTopVoteIndexMem = 0;
         for (uint256 i = 1; i < length; i++) {
-            uint256 value = t[i] % 2**39;
+            uint256 value = t[i] % 2**40;
             if (value < _minTopVoteMem) {
                 _minTopVoteMem = value;
                 _minTopVoteIndexMem = i;
