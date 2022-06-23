@@ -346,6 +346,11 @@ contract SigKSPFarmV1 is
         uint256 oldBoostWeight = user.boostWeight;
 
         uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
+
+        if (newBoostWeight == 0) {
+            user.boostRewardDebt = 0;
+        }
+
         user.boostWeight = newBoostWeight;
         totalBoostWeight = totalBoostWeight - oldBoostWeight + newBoostWeight;
     }
