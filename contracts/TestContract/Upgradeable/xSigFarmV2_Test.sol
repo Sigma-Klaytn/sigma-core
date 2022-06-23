@@ -229,15 +229,15 @@ contract xSigFarmV2_Test is
         uint256 uservxSIGBalance = vxSIG.balanceOf(msg.sender);
         vxSIG.burn(msg.sender, uservxSIGBalance);
 
-        xSIG.transfer(msg.sender, _amount);
+        xSIG.safeTransfer(msg.sender, _amount);
 
         uint256 userVotedCount = sigmaVoter.getUserVotesCount(msg.sender);
         if (userVotedCount > 0) {
-            sigmaVoter.deleteAllPoolVote();
+            sigmaVoter.deleteAllPoolVoteFromXSIGFarm(msg.sender);
         }
 
-        lpFarm.updateBoostWeight();
-        sigKSPFarm.updateBoostWeight();
+        lpFarm.updateBoostWeight(msg.sender);
+        sigKSPFarm.updateBoostWeight(msg.sender);
 
         emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
     }
@@ -248,6 +248,17 @@ contract xSigFarmV2_Test is
     function claim() external override whenNotPaused nonReentrant {
         require(isUser(msg.sender), "User didn't stake any xSIG.");
         _claim(msg.sender);
+    }
+
+    /**
+     @notice update user's vxSIG of lpFarm and sigKSPFarm.
+     */
+    function activateBoost() external whenNotPaused nonReentrant {
+        require(isUser(msg.sender), "User didn't stake any xSIG.");
+        require(vxSIG.balanceOf(msg.sender) > 0, "No vxSIG to activate boost");
+
+        lpFarm.updateBoostWeight(msg.sender);
+        sigKSPFarm.updateBoostWeight(msg.sender);
     }
 
     /* ========== Internal & Private Function  ========== */

@@ -290,11 +290,16 @@ contract SigKSPFarmV2_Test is
       @notice update boost weight of the user. 
       @notice This will be called from xSIGFarm if user activate/deactivate boost.
      */
-    function updateBoostWeight() external override whenNotPaused nonReentrant {
+    function updateBoostWeight(address _user)
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
         UserInfo memory user = userInfo[msg.sender];
         //0. if user has amount
         if (user.amount > 0) {
-            _updateBoostWeight(msg.sender);
+            _updateBoostWeight(_user);
         }
     }
 
