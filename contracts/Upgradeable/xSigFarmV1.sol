@@ -46,9 +46,6 @@ contract xSigFarmV1 is
     /// @dev contract addresses are by default unable to stake xSIG, they must be previously whitelisted to stake xSIG
     IWhitelist public whitelist;
 
-    /// @notice show active vxSIG
-    mapping(address => uint256) public activeBoostOf;
-
     struct UserInfo {
         uint256 stakedXSIG; // staked xSIG of the user
         uint256 lastRelease; // last release timestamp for checking pending vxSIG. last vxSIG claim time or first deposit time.
@@ -235,15 +232,26 @@ contract xSigFarmV1 is
 
         lpFarm.updateBoostWeight(msg.sender);
         sigKSPFarm.updateBoostWeight(msg.sender);
-        activeBoostOf[msg.sender] = 0;
 
         emit Unstaked(msg.sender, _amount, userInfo.stakedXSIG);
     }
 
+    function claimAndActivateBoost()
+        external
+        override
+        whenNotPaused
+        nonReentrant
+    {
+        _claim();
+        _activateBoost();
+    }
+
+    /* ========== Internal & Private Function  ========== */
+
     /**
      @notice claims accumulated vxSIG
      */
-    function claim() external override whenNotPaused nonReentrant {
+    function _claim() private {
         require(isUser(msg.sender), "User didn't stake any xSIG.");
         _claim(msg.sender);
     }
@@ -251,16 +259,13 @@ contract xSigFarmV1 is
     /**
      @notice update user's vxSIG of lpFarm and sigKSPFarm.
      */
-    function activateBoost() external whenNotPaused nonReentrant {
+    function _activateBoost() private {
         require(isUser(msg.sender), "User didn't stake any xSIG.");
         require(vxSIG.balanceOf(msg.sender) > 0, "No vxSIG to activate boost");
 
         lpFarm.updateBoostWeight(msg.sender);
         sigKSPFarm.updateBoostWeight(msg.sender);
-        activeBoostOf[msg.sender] = vxSIG.balanceOf(msg.sender);
     }
-
-    /* ========== Internal & Private Function  ========== */
 
     /**
      @notice asserts address in param is not a smart contract. if it is a smart contract, check that it is whitelisted

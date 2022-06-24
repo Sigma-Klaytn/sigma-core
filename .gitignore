@@ -23,8 +23,7 @@ coverageEnv
 # Dependency directory
 node_modules
 
-#migration 
-migrations
+
 
 contracts/MockERC20.sol
 # Debug log from npm

@@ -87,8 +87,10 @@ module.exports = {
                 );
             },
             network_id: '8217', //Klaytn baobab testnet's network id
-            gas: '8500000',
-            gasPrice: null
+            gas: '10000000',
+            gasPrice: null,
+            networkCheckTimeout: 1000000,
+            timeoutBlocks: 200
         },
         baobab: {
             provider: () => {

@@ -13,7 +13,7 @@ interface IxSIGFarm {
 
     function unstake(uint256 _amount) external;
 
-    function claim() external;
+    function claimAndActivateBoost() external;
 
     function getStakedXSIG(address _addr) external view returns (uint256);
 }
