@@ -1,12 +1,14 @@
 //SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.9;
 
-import "./dependencies/Ownable.sol";
-import "./dependencies/SafeERC20.sol";
-import "./interfaces/klayswap/IExchange.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "../interfaces/klayswap/IExchange.sol";
 
-contract Treasury is Ownable {
-    using SafeERC20 for IERC20;
+contract TreasuryV1 is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     IExchange public exchange;
 
@@ -39,7 +41,22 @@ contract Treasury is Ownable {
     /**
      * @notice Used to initialize a new Treasury contract
      */
-    function initialize() public onlyOwner {}
+    /**
+        @notice Initialize UUPS upgradeable smart contract.
+     */
+    function initialize() external initializer {
+        __Ownable_init();
+    }
+
+    /**
+        @notice restrict upgrade to only owner.
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        virtual
+        override
+        onlyOwner
+    {}
 
     function setInitialInfo(IExchange _exchange) external onlyOwner {
         exchange = _exchange;
@@ -53,7 +70,7 @@ contract Treasury is Ownable {
      * @param _amount amount of the transaction
      */
     function transferERC20(
-        IERC20 _token,
+        IERC20Upgradeable _token,
         address _to,
         uint256 _amount
     ) external onlyOwner {
@@ -62,13 +79,17 @@ contract Treasury is Ownable {
         emit TransferERC20(address(_token), _to, _amount);
     }
 
+    function approveToken(address _token, address _to) external onlyOwner {
+        IERC20Upgradeable(_token).approve(address(_to), type(uint256).max);
+    }
+
     /**
         @notice Withdraw the contract's KSUDT balance at the end of the launch.
      */
     function transferKlay(address _to, uint256 _amount) external onlyOwner {
         uint256 balanceOfKLAY = address(this).balance;
         require(
-            balanceOfKLAY > _amount,
+            balanceOfKLAY >= _amount,
             "There is no withdrawable amount of KLAY"
         );
 
