@@ -252,8 +252,10 @@ contract SigKSPFarmV1 is
             user.boostRewardDebt =
                 (user.boostWeight * boostAccERC20PerShare) /
                 1e36;
-
-            _updateBoostWeight(msg.sender);
+            if (user.amount == 0) {
+                totalBoostWeight = totalBoostWeight - user.boostWeight;
+                user.boostWeight = 0;
+            }
         }
 
         sigKSP.safeTransfer(address(msg.sender), _amount);
@@ -347,9 +349,7 @@ contract SigKSPFarmV1 is
 
         uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
 
-        if (newBoostWeight == 0) {
-            user.boostRewardDebt = 0;
-        }
+        user.boostRewardDebt = (newBoostWeight * boostAccERC20PerShare) / 1e36;
 
         user.boostWeight = newBoostWeight;
         totalBoostWeight = totalBoostWeight - oldBoostWeight + newBoostWeight;
