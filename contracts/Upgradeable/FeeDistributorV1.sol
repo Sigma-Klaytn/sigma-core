@@ -1,58 +1,58 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import "./dependencies/Ownable.sol";
-import "./dependencies/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/sigma/ISigKSPStaking.sol";
-import "./interfaces/sigma/ISigFarm.sol";
-import "./interfaces/klayswap/IFactory.sol";
-import "./interfaces/klayswap/IExchange.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract FeeDistributor is Ownable {
-    using SafeERC20 for IERC20;
+import "../interfaces/sigma/ISigKSPStaking.sol";
+import "../interfaces/sigma/ISigFarm.sol";
+import "../interfaces/klayswap/IFactory.sol";
+import "../interfaces/klayswap/IExchange.sol";
+
+contract FeeDistributorV1 is
+    Initializable,
+    OwnableUpgradeable,
+    UUPSUpgradeable
+{
+    using SafeERC20Upgradeable for IERC20Upgradeable;
 
     ISigKSPStaking public sigKSPStaking;
     address public treasury;
     ISigFarm public sigFarm;
     IFactory public factory;
     IExchange public exchange;
-    IERC20 public kusdt;
-    IERC20 public sig;
-    IERC20 public ksp;
+    IERC20Upgradeable public kusdt;
+    IERC20Upgradeable public sig;
+    IERC20Upgradeable public ksp;
 
     mapping(address => bool) public operators;
 
+    /* ========== Restricted Function  ========== */
+
     // Voting Fee allocation
     uint256 public constant ALLOC_TOTAL = 1000;
-    uint256 public ALLOC_TREASURY = 700;
-    uint256 public ALLOC_SIGKSP_STAKING = 250;
-    uint256 public ALLOC_SIG_FARM = 50;
-
-    /* ========== Public | External Function  ========== */
+    uint256 public ALLOC_TREASURY;
+    uint256 public ALLOC_SIGKSP_STAKING;
+    uint256 public ALLOC_SIG_FARM;
 
     /**
-        @notice Receive Klay
+        @notice Initialize UUPS upgradeable smart contract.
      */
-    receive() external payable {}
+    function initialize() external initializer {
+        __Ownable_init();
+    }
 
     /**
-        @notice Deposit protocol fees into the contract, to be distributed to lockers
-        @dev Caller must have given approval for this contract to transfer `_token`
-        @param _token Token being deposited
-        @param _amount Amount of the token to deposit
+        @notice restrict upgrade to only owner.
      */
-    function depositERC20(address _token, uint256 _amount) external {
-        require(_amount > 0, "Deposit amount should be bigger than 0.");
-        IERC20(_token).safeTransferFrom(msg.sender, address(this), _amount);
-    }
-
-    function depositKlay() external payable {
-        uint256 _amount = msg.value;
-        require(_amount > 0, "Deposit Amount should be bigger than 0");
-    }
-
-    /* ========== Restricted Function  ========== */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        virtual
+        override
+        onlyOwner
+    {}
 
     /**
      @notice Approve contracts to mint and renounce ownership
@@ -77,9 +77,9 @@ contract FeeDistributor is Ownable {
         ISigFarm _sigFarm,
         IFactory _factory,
         IExchange _exchange,
-        IERC20 _kusdt,
-        IERC20 _sig,
-        IERC20 _ksp
+        IERC20Upgradeable _kusdt,
+        IERC20Upgradeable _sig,
+        IERC20Upgradeable _ksp
     ) external onlyOwner {
         sigKSPStaking = _sigKSPStaking;
         treasury = _treasury;
@@ -95,6 +95,10 @@ contract FeeDistributor is Ownable {
         kusdt.approve(address(exchange), type(uint256).max);
         sig.approve(address(exchange), type(uint256).max);
         sig.approve(address(sigFarm), type(uint256).max);
+
+        ALLOC_TREASURY = 700;
+        ALLOC_SIGKSP_STAKING = 250;
+        ALLOC_SIG_FARM = 50;
     }
 
     function distributeSIG(uint256 _amount) external onlyOperator {
@@ -132,7 +136,7 @@ contract FeeDistributor is Ownable {
     }
 
     function distributeLP(
-        IERC20 lp,
+        IERC20Upgradeable lp,
         uint256 _amount,
         address _to
     ) external onlyOperator {
@@ -149,7 +153,7 @@ contract FeeDistributor is Ownable {
      * @param _amount amount of the transaction
      */
     function transferERC20(
-        IERC20 _token,
+        IERC20Upgradeable _token,
         address _to,
         uint256 _amount
     ) external onlyOperator {
@@ -159,7 +163,7 @@ contract FeeDistributor is Ownable {
     function transferKlay(address _to, uint256 _amount) external onlyOperator {
         uint256 balanceOfKLAY = address(this).balance;
         require(
-            balanceOfKLAY > _amount,
+            balanceOfKLAY >= _amount,
             "There is no withdrawable amount of KLAY"
         );
 
@@ -242,7 +246,34 @@ contract FeeDistributor is Ownable {
     }
 
     function approveToken(address _token, address _to) external onlyOperator {
-        IERC20(_token).approve(address(_to), type(uint256).max);
+        IERC20Upgradeable(_token).approve(address(_to), type(uint256).max);
+    }
+
+    /* ========== Public | External Function  ========== */
+
+    /**
+        @notice Receive Klay
+     */
+    receive() external payable {}
+
+    /**
+        @notice Deposit protocol fees into the contract, to be distributed to lockers
+        @dev Caller must have given approval for this contract to transfer `_token`
+        @param _token Token being deposited
+        @param _amount Amount of the token to deposit
+     */
+    function depositERC20(address _token, uint256 _amount) external {
+        require(_amount > 0, "Deposit amount should be bigger than 0.");
+        IERC20Upgradeable(_token).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
+        );
+    }
+
+    function depositKlay() external payable {
+        uint256 _amount = msg.value;
+        require(_amount > 0, "Deposit Amount should be bigger than 0");
     }
 
     // Modifier
