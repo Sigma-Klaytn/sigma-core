@@ -212,9 +212,7 @@ contract SigKSPFarmV1 is
         user.amount += _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
         if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36;
+            _updateBoostWeight(msg.sender);
         }
 
         emit Deposit(msg.sender, _amount);
@@ -249,10 +247,6 @@ contract SigKSPFarmV1 is
         user.amount -= _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
         if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36;
-
             _updateBoostWeight(msg.sender);
         }
 
@@ -347,9 +341,7 @@ contract SigKSPFarmV1 is
 
         uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
 
-        if (newBoostWeight == 0) {
-            user.boostRewardDebt = 0;
-        }
+        user.boostRewardDebt = (newBoostWeight * boostAccERC20PerShare) / 1e36;
 
         user.boostWeight = newBoostWeight;
         totalBoostWeight = totalBoostWeight - oldBoostWeight + newBoostWeight;
