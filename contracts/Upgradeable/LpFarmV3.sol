@@ -360,7 +360,16 @@ contract LpFarmV3 is
         user.amount -= _amount;
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
         if (user.boostWeight > 0) {
-            _updateBoostWeight(msg.sender, _pid);
+            user.boostRewardDebt =
+                (user.boostWeight * pool.boostAccERC20PerShare) /
+                1e36;
+
+            if (user.amount == 0) {
+                pool.totalBoostWeight =
+                    pool.totalBoostWeight -
+                    user.boostWeight;
+                user.boostWeight = 0;
+            }
         }
 
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
@@ -531,7 +540,16 @@ contract LpFarmV3 is
 
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
         if (user.boostWeight > 0) {
-            _updateBoostWeight(msg.sender, LOCKDROP_POOL_INDEX);
+            user.boostRewardDebt =
+                (user.boostWeight * pool.boostAccERC20PerShare) /
+                1e36;
+
+            if (user.amount == 0) {
+                pool.totalBoostWeight =
+                    pool.totalBoostWeight -
+                    user.boostWeight;
+                user.boostWeight = 0;
+            }
         }
 
         pool.lpToken.safeTransfer(address(msg.sender), user.lockdropAmount);
@@ -578,7 +596,6 @@ contract LpFarmV3 is
         user.boostRewardDebt =
             (newBoostWeight * pool.boostAccERC20PerShare) /
             1e36;
-
         user.boostWeight = newBoostWeight;
         pool.totalBoostWeight =
             pool.totalBoostWeight -
