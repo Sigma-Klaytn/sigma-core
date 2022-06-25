@@ -8,8 +8,25 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "../interfaces/sigma/IvxERC20.sol";
-import "../interfaces/sigma/ILpFarm.sol";
+interface IvxERC20 {
+    function totalSupply() external view returns (uint256);
+
+    function balanceOf(address account) external view returns (uint256);
+
+    function mint(address account, uint256 amount) external;
+
+    function burn(address account, uint256 amount) external;
+}
+
+interface ILpFarm {
+    function updateBoostWeight(address _user) external;
+
+    function forwardLpTokensFromLockdrop(
+        address _user,
+        uint256 _amount,
+        uint256 _lockingPeriod
+    ) external;
+}
 
 // Farm distributes the sig rewards based on staked LP to each user.
 //
@@ -224,8 +241,6 @@ contract LpFarmV3 is
         external
         onlyOwner
     {
-        _massUpdatePools();
-
         poolInfo[_pid].lpToken = IERC20Upgradeable(_address);
     }
 
@@ -590,6 +605,14 @@ contract LpFarmV3 is
 
         uint256 vxAmount = vxSIG.balanceOf(_addr);
         uint256 oldBoostWeight = user.boostWeight;
+
+        if (oldBoostWeight > 0) {
+            uint256 boostPendingAmount = (oldBoostWeight *
+                pool.boostAccERC20PerShare) /
+                1e36 -
+                user.boostRewardDebt;
+            transferSIG(_addr, boostPendingAmount);
+        }
 
         uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
 
