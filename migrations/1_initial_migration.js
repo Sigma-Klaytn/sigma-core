@@ -203,24 +203,23 @@ module.exports = async function (deployer) {
     console.log("sigKSPFarm address ", sigKSPFarm.address);
 
 
-    // sigKSP_KSP_LP = await MockERC20.at("0xaBb30F6D92636246c2e890f8D9B51015C90ac1b4");
-    // LpFarm = await LpFarmV3.at("0xfF41F60E9AC0Eb06aa4C982d27318f4034408340")
+    // sigKSP_KSP_LP = await MockERC20.at("0x7a2690df94c439d390909d151301542afFB2a551");
+    // LpFarm = await LpFarmV3.at("0x84c16Fcd5b9F370d902d2Bb886b34C55fC2cc956")
+    // vxSIGToken = await VXSIG_TOKEN.at("0xfA17E89d9eB7B8a9183872CeBbF4e0d0a0721003")
 
 
-    // // Sigma Contract To be Deployed
-    // treasury = await TREASURY.at("0x7C320CFbb761C05cf4FF340652e36B87A8cFEf91")
-    // feeDistributor = await FEE_DISTRIBUTOR.at("0xa18CaD5c6FBF68A426d4bc771F4f5B650ea0d4ED")
-    // klayswapEscrow = await KLAYSWAP_ESCORW.at("0x5B1FD2713E847dd639F396f9f8F2E889d8826Ab7")
-    // sigKSPStaking = await SIGKSP_STAKING.at("0x8450F0A5421938eaD596440F8b4Cc4250165ffd2")
-    // sigFarm = await SIGFARM.at("0xcD42b5627FA630e0E74fb041b1d2c9dDd96348Fb")
-    // xSIGFarm = await XSIG_FARM.at("0x77049b18E32dB58E57d8962feEa9f5e3d371aA33")
-    // lockdropLpFarmProxy = await LOCKDROP_LPFARM_PROXY.at("0xB8148Ca20843a4e2A14Fa78b6BC7f107172d5686")
-    // xSIGToken = await XSIG_TOKEN.at("0x3EaF140Da33dA8A4CEd5972A7d1E1C3a733e91b6")
-    // vxSIGToken = await VXSIG_TOKEN.at("0x1857638165e1227ab921aeA24A6fF6110595A11d")
-    // sigmaVoter = await SIGMA_VOTER.at("0x7bd45Ef8bc46fBeBA2bfd6805553eF48525c69aC")
-    // sigKSPFarm = await SIGKSP_FARM.at("0xd0B10004F061C184D6e26289CdDe170d15618Fc8")
 
-
+    // Sigma Contract To be Deployed
+    // treasury = await TREASURY.at("0xFA2628EffaA20f6E9D9adb369dEE754e6d2D01F6")
+    // feeDistributor = await FEE_DISTRIBUTOR.at("0x51b9148fCdDAbA47DF56eB5A0eeD6B6d9E14112d")
+    // klayswapEscrow = await KLAYSWAP_ESCORW.at("0x64871102A7229515961C8478CFdaED0A9BAa9aba")
+    // sigKSPStaking = await SIGKSP_STAKING.at("0x774051cFC2bd4Cd9FBd9a8C5f8CF6B092Aa6FF1d")
+    // sigFarm = await SIGFARM.at("0x21FDea4C86E55C46561e21e333885C2c6b42b57a")
+    // xSIGFarm = await XSIG_FARM.at("0x752CFeC711a7f44b2901195D828189B9083fa2F4")
+    // lockdropLpFarmProxy = await LOCKDROP_LPFARM_PROXY.at("0xdeB2bd13e328FF750e16A0b751D63B833B1a6712")
+    // xSIGToken = await XSIG_TOKEN.at("0x7fE0A8B46D5830E64938e6Db09B8C44c5D664D04")
+    // sigmaVoter = await SIGMA_VOTER.at("0x87c1b6F0892174B8E5ad9Eb12e7f915e528eeF2E")
+    // sigKSPFarm = await SIGKSP_FARM.at("0x2d297688263b9313eeEf244e95b9e880aeA4481F")
 
 
     // weird log is because of the weird of Klaytn's error.
@@ -254,7 +253,7 @@ module.exports = async function (deployer) {
 
     // 3. Set initialInfo
 
-    // // 1. Treasury
+    // 1. Treasury
     // TODO : CHANGE THIS TO SIG-oUSDT 
     await treasury.setInitialInfo(SIG_oUSDT_LP)
     console.log('  done 1')

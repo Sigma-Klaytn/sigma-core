@@ -89,8 +89,9 @@ module.exports = {
             network_id: '8217', //Klaytn baobab testnet's network id
             gas: '10000000',
             gasPrice: null,
-            networkCheckTimeout: 7000000,
-            timeoutBlocks: 500
+            networkCheckTimeout: 1000000,
+            timeoutBlocks: 300,
+            // confirmations: 5 // # of confs to wait between deployments. (default: 0)
         },
         baobab: {
             provider: () => {
