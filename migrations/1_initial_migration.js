@@ -56,16 +56,18 @@ const PoolVoting = "0x71b59e4bc2995b57aa03437ed645ada7dd5b1890";
 const VotingKSP_vKSP = "0x2f3713f388bc4b8b364a7a2d8d57c5ff4e054830";
 const Utils = "0x7A74B3be679E194E1D6A0C29A343ef8D2a5AC876";
 //(실제 deploy 때에는 oUSDT - SIG)
-const oUSDT_KSP_LP = "0xE75a6A3a800A2C5123e67e3bde911Ba761FE0705"
 const oUSDT = "0xcee8faf64bb97a73bb51e115aa89c17ffa8dd167";
 
 
 //Sigma Pre-deployed contract address
-// TODO: Test 용도로 직접 deploy 하여 사용
-let SIG = "";
-let SIG_oUSDT_LP = "";
+let SIG = "0x94a2a6308c0a3782d83ad590d82ff0ffcc515312";
+let SIG_oUSDT_LP = "0xb821e4cc5b913f307db7d11d3360a6eb5b38bf9f";
+
+// TODO: Test 용도로 직접 deploy 하여 사용 .address 삭제
 let sigKSP_KSP_LP = "";
+// TODO: Test 용도로 직접 deploy 하여 사용 .address 삭제
 let LpFarm = "";
+// TODO: Test 용도로 직접 deploy 하여 사용 .address 삭제
 let vxSIGToken;
 let BOT_ACCOUNT = "0x3a7c4274d4e91299aF7e760a11F7A6Acf40D6BF4";
 // 진짜 lockdrop
@@ -85,6 +87,7 @@ let sigmaVoter;
 
 let sigKSPFarm;
 
+let impl;
 
 module.exports = async function (deployer) {
     const accounts = await web3.eth.getAccounts();
@@ -92,21 +95,22 @@ module.exports = async function (deployer) {
 
     // ==== TEST PURPOSE NEET TO DELETE AFTER TEST ====
 
-    // await deployer.deploy(SigmaToken, owner);
-    // SIG = await SigmaToken.deployed();
-    // await deployer.deploy(MockERC20);
-    // SIG_oUSDT_LP = await MockERC20.deployed();
-    // await deployer.deploy(MockERC20);
-    // sigKSP_KSP_LP = await MockERC20.deployed();
+    await deployer.deploy(MockERC20);
+    sigKSP_KSP_LP = await MockERC20.deployed();
 
 
-    // //lpFarmV3 
-    // await deployer.deploy(LpFarmV3);
-    // let impl = await LpFarmV3.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // LpFarm = await LpFarmV3.at((await UUPSProxy.deployed()).address)
+    //lpFarmV3 
+    await deployer.deploy(LpFarmV3);
+    impl = await LpFarmV3.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    LpFarm = await LpFarmV3.at((await UUPSProxy.deployed()).address)
 
-    // // TODO : END OF THEST PURPOSE =================
+
+    //vxSIG Token
+    await deployer.deploy(VXSIG_TOKEN)
+    vxSIGToken = await VXSIG_TOKEN.deployed()
+
+    // TODO : END OF THEST PURPOSE =================
 
     // /**
     //  * [Table of deployment]
@@ -117,187 +121,223 @@ module.exports = async function (deployer) {
     //  */
 
 
-    // // 1. Deploy all contarct that are needed.
+    // 1. Deploy all contarct that are needed.
 
-    // //Treasury 
-    // await deployer.deploy(TREASURY);
-    // impl = await TREASURY.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // treasury = await TREASURY.at((await UUPSProxy.deployed()).address)
-
-
-    // //FeeDistributor 
-    // await deployer.deploy(FEE_DISTRIBUTOR);
-    // impl = await FEE_DISTRIBUTOR.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // feeDistributor = await FEE_DISTRIBUTOR.at((await UUPSProxy.deployed()).address)
-
-    // //KlayswapEscorw 
-    // await deployer.deploy(KLAYSWAP_ESCORW);
-    // impl = await KLAYSWAP_ESCORW.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // klayswapEscrow = await KLAYSWAP_ESCORW.at((await UUPSProxy.deployed()).address)
-
-    // //sigKSPStakingV1 
-    // await deployer.deploy(SIGKSP_STAKING);
-    // impl = await SIGKSP_STAKING.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // sigKSPStaking = await SIGKSP_STAKING.at((await UUPSProxy.deployed()).address)
-
-    // //SIGFarmV1 
-    // await deployer.deploy(SIGFARM);
-    // impl = await SIGFARM.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // sigFarm = await SIGFARM.at((await UUPSProxy.deployed()).address)
-
-    // //xSIGFarm 
-    // await deployer.deploy(XSIG_FARM);
-    // impl = await XSIG_FARM.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // xSIGFarm = await XSIG_FARM.at((await UUPSProxy.deployed()).address)
-
-    // // LockdropLpFarmProxyV1
-    // await deployer.deploy(LOCKDROP_LPFARM_PROXY);
-    // impl = await LOCKDROP_LPFARM_PROXY.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // lockdropLpFarmProxy = await LOCKDROP_LPFARM_PROXY.at((await UUPSProxy.deployed()).address)
-
-    // // SigmaVoter 
-    // await deployer.deploy(SIGMA_VOTER);
-    // impl = await SIGMA_VOTER.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // sigmaVoter = await SIGMA_VOTER.at((await UUPSProxy.deployed()).address)
-
-    // // xSIG Token
-    // await deployer.deploy(XSIG_TOKEN)
-    // xSIGToken = await XSIG_TOKEN.deployed()
-
-    // // vxSIG Token
-    // await deployer.deploy(VXSIG_TOKEN)
-    // vxSIGToken = await VXSIG_TOKEN.deployed()
-
-    // // sigKSPFarm 
-    // await deployer.deploy(SIGKSP_FARM)
-    // impl = await SIGKSP_FARM.deployed()
-    // await deployer.deploy(UUPSProxy, impl.address, "0x");
-    // sigKSPFarm = await SIGKSP_FARM.at((await UUPSProxy.deployed()).address)
-
-    // console.log("sig address ", SIG.address);
-    // console.log("SIG_oUSDT_LP address ", SIG_oUSDT_LP.address);
-    // console.log("sigKSP_KSP_LP address ", sigKSP_KSP_LP.address);
-
-    // console.log("LpFarm address ", LpFarm.address);
-
-    // console.log("treasury address ", treasury.address);
-    // console.log("feeDistributor address ", feeDistributor.address);
-    // console.log("klayswapEscrow address ", klayswapEscrow.address);
-    // console.log("sigKSPStaking address ", sigKSPStaking.address);
-    // console.log("sigFarm address ", sigFarm.address);
-    // console.log("xSIGFarm address ", xSIGFarm.address);
-    // console.log("lockdropLpFarmProxy address ", lockdropLpFarmProxy.address);
-    // console.log("sigmaVoter address ", sigmaVoter.address);
-
-    // console.log("xSIGToken address ", xSIGToken.address);
-    // console.log("vxSIGToken address ", vxSIGToken.address);
+    //Treasury 
+    await deployer.deploy(TREASURY);
+    impl = await TREASURY.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    treasury = await TREASURY.at((await UUPSProxy.deployed()).address)
 
 
-    // // 2. Initialize all upgradeable smart contract 
+    //FeeDistributor 
+    await deployer.deploy(FEE_DISTRIBUTOR);
+    impl = await FEE_DISTRIBUTOR.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    feeDistributor = await FEE_DISTRIBUTOR.at((await UUPSProxy.deployed()).address)
 
-    // // TODO : should be deleted 
-    // await LpFarm.initialize()
-    // await treasury.initialize()
-    // await feeDistributor.initialize()
-    // await klayswapEscrow.initialize()
-    // await sigKSPStaking.initialize()
-    // await sigFarm.initialize()
-    // await xSIGFarm.initialize()
-    // await lockdropLpFarmProxy.initialize()
-    // await sigmaVoter.initialize()
+    //KlayswapEscorw 
+    await deployer.deploy(KLAYSWAP_ESCORW);
+    impl = await KLAYSWAP_ESCORW.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    klayswapEscrow = await KLAYSWAP_ESCORW.at((await UUPSProxy.deployed()).address)
+
+    //sigKSPStakingV1 
+    await deployer.deploy(SIGKSP_STAKING);
+    impl = await SIGKSP_STAKING.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    sigKSPStaking = await SIGKSP_STAKING.at((await UUPSProxy.deployed()).address)
+
+    //SIGFarmV1 
+    await deployer.deploy(SIGFARM);
+    impl = await SIGFARM.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    sigFarm = await SIGFARM.at((await UUPSProxy.deployed()).address)
+
+    //xSIGFarm 
+    await deployer.deploy(XSIG_FARM);
+    impl = await XSIG_FARM.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    xSIGFarm = await XSIG_FARM.at((await UUPSProxy.deployed()).address)
+
+    // LockdropLpFarmProxyV1
+    await deployer.deploy(LOCKDROP_LPFARM_PROXY);
+    impl = await LOCKDROP_LPFARM_PROXY.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    lockdropLpFarmProxy = await LOCKDROP_LPFARM_PROXY.at((await UUPSProxy.deployed()).address)
+
+    // SigmaVoter 
+    await deployer.deploy(SIGMA_VOTER);
+    impl = await SIGMA_VOTER.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    sigmaVoter = await SIGMA_VOTER.at((await UUPSProxy.deployed()).address)
+
+    // xSIG Token
+    await deployer.deploy(XSIG_TOKEN)
+    xSIGToken = await XSIG_TOKEN.deployed()
+
+    // sigKSPFarm 
+    await deployer.deploy(SIGKSP_FARM)
+    impl = await SIGKSP_FARM.deployed()
+    await deployer.deploy(UUPSProxy, impl.address, "0x");
+    sigKSPFarm = await SIGKSP_FARM.at((await UUPSProxy.deployed()).address)
+
+    console.log("sig address ", SIG);
+    console.log("SIG_oUSDT_LP address ", SIG_oUSDT_LP);
+    console.log("sigKSP_KSP_LP address ", sigKSP_KSP_LP.address);
+
+    console.log("LpFarm address ", LpFarm.address);
+
+    console.log("treasury address ", treasury.address);
+    console.log("feeDistributor address ", feeDistributor.address);
+    console.log("klayswapEscrow address ", klayswapEscrow.address);
+    console.log("sigKSPStaking address ", sigKSPStaking.address);
+    console.log("sigFarm address ", sigFarm.address);
+    console.log("xSIGFarm address ", xSIGFarm.address);
+    console.log("lockdropLpFarmProxy address ", lockdropLpFarmProxy.address);
+    console.log("sigmaVoter address ", sigmaVoter.address);
+
+    console.log("xSIGToken address ", xSIGToken.address);
+    console.log("vxSIGToken address ", vxSIGToken.address);
+
+    console.log("sigKSPFarm address ", sigKSPFarm.address);
 
 
-    SIG = await SigmaToken.at("0x5A4200FF4Da65941654DCd1C1334FaE7a95BeB7D");
-
-    SIG_oUSDT_LP = await MockERC20.at("0x7784c528e9F64C17388409389dF439E813EE7622");
-    sigKSP_KSP_LP = await MockERC20.at("0x25e445a70e41AffBE206F5fA995Bd5173e443F00");
-    LpFarm = await LpFarmV3.at("0x7b7334627932FE63A8C07EdB3fc7D3Ddf38684aE")
+    // sigKSP_KSP_LP = await MockERC20.at("0xaBb30F6D92636246c2e890f8D9B51015C90ac1b4");
+    // LpFarm = await LpFarmV3.at("0xfF41F60E9AC0Eb06aa4C982d27318f4034408340")
 
 
-    // Sigma Contract To be Deployed
-    treasury = await TREASURY.at("0x56D2A13cdb0C6e7aff7532041b0043200EA800b4")
-    feeDistributor = await FEE_DISTRIBUTOR.at("0x63EB6357A310A4B80c07cbC429D2A406e7F597c9")
-    klayswapEscrow = await KLAYSWAP_ESCORW.at("0xF7e44A10A425954C47fe82502EC37985561d260e")
-    sigKSPStaking = await SIGKSP_STAKING.at("0x8f29582D81E3bB3ff007F17a25f79EA2BF91e54b")
-    sigFarm = await SIGFARM.at("0x3Dcb6C44c86f1ab9Be4a8273445aae01792520F0")
-    xSIGFarm = await XSIG_FARM.at("0x6926c3eAa52a775E1f002A40F0411BC07cDC4Ca7")
-    lockdropLpFarmProxy = await LOCKDROP_LPFARM_PROXY.at("0x7644bFD00D6dCF917E3eaaB1427822Ec0D0c3Ce8")
-    xSIGToken = await XSIG_TOKEN.at("0x8436DF4e176c17747e77f293F752Ec0aDA4e4466")
-    vxSIGToken = await VXSIG_TOKEN.at("0x475f13609A6AeabdEc3B5340F15644f518FD63dB")
-    sigmaVoter = await SIGMA_VOTER.at("0x17114670812eF2d8E4eD63cB90A93aC88a99d241")
-    sigKSPFarm = await SIGKSP_FARM.at("0xF28f49EDA6CC722488F6B830479E4281E9E54a31")
-    console.log(' Initialize done ')
+    // // Sigma Contract To be Deployed
+    // treasury = await TREASURY.at("0x7C320CFbb761C05cf4FF340652e36B87A8cFEf91")
+    // feeDistributor = await FEE_DISTRIBUTOR.at("0xa18CaD5c6FBF68A426d4bc771F4f5B650ea0d4ED")
+    // klayswapEscrow = await KLAYSWAP_ESCORW.at("0x5B1FD2713E847dd639F396f9f8F2E889d8826Ab7")
+    // sigKSPStaking = await SIGKSP_STAKING.at("0x8450F0A5421938eaD596440F8b4Cc4250165ffd2")
+    // sigFarm = await SIGFARM.at("0xcD42b5627FA630e0E74fb041b1d2c9dDd96348Fb")
+    // xSIGFarm = await XSIG_FARM.at("0x77049b18E32dB58E57d8962feEa9f5e3d371aA33")
+    // lockdropLpFarmProxy = await LOCKDROP_LPFARM_PROXY.at("0xB8148Ca20843a4e2A14Fa78b6BC7f107172d5686")
+    // xSIGToken = await XSIG_TOKEN.at("0x3EaF140Da33dA8A4CEd5972A7d1E1C3a733e91b6")
+    // vxSIGToken = await VXSIG_TOKEN.at("0x1857638165e1227ab921aeA24A6fF6110595A11d")
+    // sigmaVoter = await SIGMA_VOTER.at("0x7bd45Ef8bc46fBeBA2bfd6805553eF48525c69aC")
+    // sigKSPFarm = await SIGKSP_FARM.at("0xd0B10004F061C184D6e26289CdDe170d15618Fc8")
+
+
+
+
+    // weird log is because of the weird of Klaytn's error.
+
+    // 2. Initialize all upgradeable smart contract 
+
+    // TODO : should be deleted 
+    await LpFarm.initialize()
+    // END
+
+    await treasury.initialize()
+    await feeDistributor.initialize()
+    console.log('  d ')
+
+    await klayswapEscrow.initialize()
+    await sigKSPStaking.initialize()
+    console.log('  o ')
+
+    await sigFarm.initialize()
+    await xSIGFarm.initialize()
+    console.log('  n ')
+
+    await lockdropLpFarmProxy.initialize()
+    await sigmaVoter.initialize()
+    console.log('  3 ')
+
+    await sigKSPFarm.initialize()
+
+
+    console.log('  done ')
+
     // 3. Set initialInfo
 
     // // 1. Treasury
-    // // TODO : CHANGE THIS TO SIG-oUSDT 
-    // await treasury.setInitialInfo(sigKSPStaking.address)
+    // TODO : CHANGE THIS TO SIG-oUSDT 
+    await treasury.setInitialInfo(SIG_oUSDT_LP)
+    console.log('  done 1')
 
 
-    // // 2. FeeDistributor
-    // await feeDistributor.setInitialInfo(sigKSPStaking.address, treasury.address, sigFarm.address, Factory_KSP, oUSDT_KSP_LP, oUSDT, SIG.address, Factory_KSP)
-    // await feeDistributor.setOperator([BOT_ACCOUNT])
+    // 2. FeeDistributor
+    await feeDistributor.setInitialInfo(sigKSPStaking.address, treasury.address, sigFarm.address, Factory_KSP, SIG_oUSDT_LP, oUSDT, SIG, Factory_KSP)
+    await feeDistributor.setOperator([BOT_ACCOUNT])
 
-    // // 3. KlayswapEscrow
-    // await klayswapEscrow.setInitialInfo(Factory_KSP, oUSDT, VotingKSP_vKSP, PoolVoting, sigmaVoter.address, Factory_KSP, feeDistributor.address)
-    // await klayswapEscrow.setOperator([BOT_ACCOUNT, owner])
+    console.log('  done 2')
 
 
-    // for (const [key, value] of Object.entries(TOKEN_CONFIG.TOKEN)) {
-    //     console.log('approve token', value);
-    //     if (key !== "KLAY") {
-    //         await klayswapEscrow.approveToken(value.toString(), Factory_KSP)
-    //     }
-    // }
+    // 3. KlayswapEscrow
+    await klayswapEscrow.setInitialInfo(Factory_KSP, oUSDT, VotingKSP_vKSP, PoolVoting, sigmaVoter.address, Factory_KSP, feeDistributor.address)
+    await klayswapEscrow.setOperator([BOT_ACCOUNT, owner])
+
+    console.log('  done 3')
+
+    for (const [key, value] of Object.entries(TOKEN_CONFIG.TOKEN)) {
+        console.log('approve token', value);
+        if (key !== "KLAY") {
+            await klayswapEscrow.approveToken(value.toString(), Factory_KSP)
+        }
+    }
+
+
+    console.log('  done 4')
 
 
     // 4. SigKSP Staking 
-    // await sigKSPStaking.setInitialInfo(Factory_KSP, [SIG.address, Factory_KSP], sigKSPStaking_REWARD_DURATION, feeDistributor.address)
+    await sigKSPStaking.setInitialInfo(klayswapEscrow.address, [SIG, Factory_KSP], sigKSPStaking_REWARD_DURATION, feeDistributor.address)
 
-    // // 5. SigFarm
-    // await sigFarm.setInitialInfo(SIG.address, sigFarm_LOCKING_PERIOD, xSIGToken.address)
+    console.log('  done 5')
 
-    // // 6. xSIGFarm
-    // await xSIGFarm.setInitialInfo(xSIGToken.address, vxSIGToken.address, sigmaVoter.address, sigKSPFarm.address, LpFarm.address)
+    // 5. SigFarm
+    await sigFarm.setInitialInfo(SIG, sigFarm_LOCKING_PERIOD, xSIGToken.address)
 
+
+    console.log('  done 6')
+
+    // 6. xSIGFarm
+    await xSIGFarm.setInitialInfo(xSIGToken.address, vxSIGToken.address, sigmaVoter.address, sigKSPFarm.address, LpFarm.address)
+
+    console.log('  done 7')
 
     // TODO : Need to be deleted 
     // 7. lpFarm 
-    // let block = await web3.eth.getBlock("latest")
-    // console.log(block.number)
+    let block = await web3.eth.getBlock("latest")
+    console.log(block.number)
 
-    // await LpFarm.setInitialInfo(SIG.address, vxSIGToken.address, new BN("277460679840000000"), block.number + 30)
-    // await LpFarm.addPool(285714, 285714, SIG_oUSDT_LP.address)
-    // await LpFarm.addPool(214286, 214286, sigKSP_KSP_LP.address)
+    await LpFarm.setInitialInfo(SIG, vxSIGToken.address, new BN("1000000"), block.number + 30)
+    await LpFarm.addPool(285714, 285714, SIG_oUSDT_LP)
+    await LpFarm.addPool(214286, 214286, sigKSP_KSP_LP.address)
 
-    // await SIG.approve(LpFarm.address, bnMantissa(17500000));
-    // await LpFarm.fund(bnMantissa(17500000))
-    // await LpFarm.setLockdropProxy(lockdropLpFarmProxy.address)
+    let sigToken = await SigmaToken.at(SIG)
+    await sigToken.approve(LpFarm.address, bnMantissa(5));
+    await LpFarm.fund(bnMantissa(5))
+    await LpFarm.setLockdropProxy(lockdropLpFarmProxy.address)
+
+    console.log('  done 8')
     // END
 
-    // await lockdropLpFarmProxy.setInitialInfo(sigKSP_KSP_LP.address, Lockdrop, LpFarm.address, new BN("227100212865627939698517"))
-
     //TODO : NEED TO BE DELETED - 매뉴얼하게 해야함
+    await lockdropLpFarmProxy.setInitialInfo(sigKSP_KSP_LP.address, Lockdrop, LpFarm.address, new BN("227100212865627939698517"))
 
-    // await sigKSP_KSP_LP.mint(bnMantissa(1000))
-    // await sigKSP_KSP_LP.approve(lockdropLpFarmProxy.address, bnMantissa(1000))
-    // await lockdropLpFarmProxy.releaseLPToken(bnMantissa(1000))
+    await sigKSP_KSP_LP.mint(bnMantissa(1000))
+    await sigKSP_KSP_LP.approve(lockdropLpFarmProxy.address, bnMantissa(1000))
+    await lockdropLpFarmProxy.releaseLPToken(bnMantissa(1000))
+    console.log('  done 10')
+
     // END
 
     // SigmaVoter  
-    // await sigmaVoter.setInitialInfo(TOKEN_CONFIG.LP_POOLS, TOKEN_CONFIG.TOP_LP_POOLS, vxSIGToken.address, sigmaVoter_USER_MAX_VOTE, xSIGFarm.address)
+    await sigmaVoter.setInitialInfo(TOKEN_CONFIG.LP_POOLS, TOKEN_CONFIG.TOP_LP_POOLS, vxSIGToken.address, sigmaVoter_USER_MAX_VOTE, xSIGFarm.address)
+    console.log('  done 11')
 
-    // // xSIG Token
-    // await xSIGToken.setOperator([sigFarm.address])
+    // xSIG Token
+    await xSIGToken.setOperator([sigFarm.address])
+    console.log('  done 12')
 
-    // // vxSIG Token
-    // await vxSIGToken.setOperator([xSIGFarm.address])
+
+    // vxSIG Token
+    await vxSIGToken.setOperator([xSIGFarm.address])
+    console.log('  done 13')
+
 };

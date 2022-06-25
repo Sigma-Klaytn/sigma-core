@@ -751,10 +751,10 @@ contract SigmaVoterV1 is
         view
         returns (PoolVote[] memory)
     {
-        PoolVote[] memory userPoolVotes = userPoolVotes[_user];
-        PoolVote[] memory votes = new PoolVote[](userPoolVotes.length - 1);
-        for (uint256 i = 1; i < userPoolVotes.length; i++) {
-            votes[i - 1] = userPoolVotes[i];
+        PoolVote[] memory userVotes = userPoolVotes[_user];
+        PoolVote[] memory votes = new PoolVote[](userVotes.length - 1);
+        for (uint256 i = 1; i < userVotes.length; i++) {
+            votes[i - 1] = userVotes[i];
         }
         return votes;
     }

@@ -8,7 +8,7 @@ const TOKEN_CONFIG = {
         'KDAI': '0x5c74070fdea071359b86082bd9f9b3deaafbe32b',
         'KSP': '0xc6a2ad8cc6e4a7e08fc37cc5954be07d499e7654',
         'oUSDC': '0x754288077d0ff82af7a5317c7cb8c444d421d103',
-        // 'SIG': 'TODO',
+        'SIG': '0x94a2a6308c0a3782d83ad590d82ff0ffcc515312',
         'oXRP': '0x9eaefb09fe4aabfbe6b1ca316a3c36afc83a393f',
         'BORA': '0x02cbe46fb8a1f579254a9b485788f2d86cad51aa',
         'SKLAY': '0xa323d7386b671e8799dca3582d6658fdcdcd940a',
