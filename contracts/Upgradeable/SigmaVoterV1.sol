@@ -741,4 +741,21 @@ contract SigmaVoterV1 is
             return userPoolVotes[_user].length - 1;
         }
     }
+
+    /**
+        @notice Get User Current Pool Votes. 
+        @param _user address of user
+     */
+    function getUserPoolVotes(address _user)
+        external
+        view
+        returns (PoolVote[] memory)
+    {
+        PoolVote[] memory userPoolVotes = userPoolVotes[_user];
+        PoolVote[] memory votes = new PoolVote[](userPoolVotes.length - 1);
+        for (uint256 i = 1; i < userPoolVotes.length; i++) {
+            votes[i - 1] = userPoolVotes[i];
+        }
+        return votes;
+    }
 }
