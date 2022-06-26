@@ -309,16 +309,6 @@ contract LpFarmV3 is
         if (user.amount > 0) {
             uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) /
                 1e36) - user.rewardDebt;
-
-            //if user has boost,
-            if (user.boostWeight > 0) {
-                uint256 boostPendingAmount = (user.boostWeight *
-                    pool.boostAccERC20PerShare) /
-                    1e36 -
-                    user.boostRewardDebt;
-
-                pendingAmount += boostPendingAmount;
-            }
             transferSIG(msg.sender, pendingAmount);
         }
 
@@ -331,11 +321,7 @@ contract LpFarmV3 is
         user.amount += _amount;
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
 
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
-        }
+        _updateBoostWeight(msg.sender, _pid);
 
         emit Deposit(msg.sender, _pid, _amount);
     }
@@ -361,31 +347,12 @@ contract LpFarmV3 is
         uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) / 1e36) -
             user.rewardDebt;
 
-        //if user has boost,
-        if (user.boostWeight > 0) {
-            uint256 boostPendingAmount = (user.boostWeight *
-                pool.boostAccERC20PerShare) /
-                1e36 -
-                user.boostRewardDebt;
-            pendingAmount += boostPendingAmount;
-        }
-
         transferSIG(msg.sender, pendingAmount);
 
         user.amount -= _amount;
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
 
-            if (user.amount == 0) {
-                pool.totalBoostWeight =
-                    pool.totalBoostWeight -
-                    user.boostWeight;
-                user.boostWeight = 0;
-            }
-        }
+        _updateBoostWeight(msg.sender, _pid);
 
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
         emit Withdraw(msg.sender, _pid, _amount);
@@ -483,15 +450,6 @@ contract LpFarmV3 is
             uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) /
                 1e36) - user.rewardDebt;
 
-            //if user has boost,
-            if (user.boostWeight > 0) {
-                uint256 boostPendingAmount = (user.boostWeight *
-                    pool.boostAccERC20PerShare) /
-                    1e36 -
-                    user.boostRewardDebt;
-
-                pendingAmount += boostPendingAmount;
-            }
             transferSIG(_user, pendingAmount);
         }
 
@@ -507,11 +465,7 @@ contract LpFarmV3 is
 
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
 
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
-        }
+        _updateBoostWeight(_user, LOCKDROP_POOL_INDEX);
 
         emit LockdropDeposit(msg.sender, _amount);
     }
@@ -538,15 +492,6 @@ contract LpFarmV3 is
         uint256 pendingAmount = ((user.amount * pool.accERC20PerShare) / 1e36) -
             user.rewardDebt;
 
-        //if user has boost,
-        if (user.boostWeight > 0) {
-            uint256 boostPendingAmount = (user.boostWeight *
-                pool.boostAccERC20PerShare) /
-                1e36 -
-                user.boostRewardDebt;
-            pendingAmount += boostPendingAmount;
-        }
-
         transferSIG(msg.sender, pendingAmount);
 
         user.amount -= user.lockdropAmount;
@@ -554,18 +499,8 @@ contract LpFarmV3 is
         user.isLockdropLPTokenClaimed = true;
 
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * pool.boostAccERC20PerShare) /
-                1e36;
 
-            if (user.amount == 0) {
-                pool.totalBoostWeight =
-                    pool.totalBoostWeight -
-                    user.boostWeight;
-                user.boostWeight = 0;
-            }
-        }
+        _updateBoostWeight(msg.sender, LOCKDROP_POOL_INDEX);
 
         pool.lpToken.safeTransfer(address(msg.sender), user.lockdropAmount);
         emit WithdrawLockdropLP(msg.sender, user.lockdropAmount);
