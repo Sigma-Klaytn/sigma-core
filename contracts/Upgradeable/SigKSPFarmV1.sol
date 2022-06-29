@@ -15,7 +15,7 @@ import "../interfaces/sigma/ISigKSPFarm.sol";
 // Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
-contract SigKSPFarmV1 is
+contract SigKSPFarmV2 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -196,26 +196,15 @@ contract SigKSPFarmV1 is
         if (user.amount > 0) {
             uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
                 user.rewardDebt;
-
-            //if user has boost,
-            if (user.boostWeight > 0) {
-                uint256 boostPendingAmount = (user.boostWeight *
-                    boostAccERC20PerShare) /
-                    1e36 -
-                    user.boostRewardDebt;
-
-                pendingAmount += boostPendingAmount;
-            }
             _transferSIG(msg.sender, pendingAmount);
         }
+
         sigKSP.safeTransferFrom(address(msg.sender), address(this), _amount);
+
         user.amount += _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36;
-        }
+
+        _updateBoostWeight(msg.sender);
 
         emit Deposit(msg.sender, _amount);
     }
@@ -235,28 +224,12 @@ contract SigKSPFarmV1 is
         uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
             user.rewardDebt;
 
-        //if user has boost,
-        if (user.boostWeight > 0) {
-            uint256 boostPendingAmount = (user.boostWeight *
-                boostAccERC20PerShare) /
-                1e36 -
-                user.boostRewardDebt;
-            pendingAmount += boostPendingAmount;
-        }
-
         _transferSIG(msg.sender, pendingAmount);
 
         user.amount -= _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36;
-            if (user.amount == 0) {
-                totalBoostWeight = totalBoostWeight - user.boostWeight;
-                user.boostWeight = 0;
-            }
-        }
+
+        _updateBoostWeight(msg.sender);
 
         sigKSP.safeTransfer(address(msg.sender), _amount);
         emit Withdraw(msg.sender, _amount);
@@ -346,6 +319,14 @@ contract SigKSPFarmV1 is
 
         uint256 vxAmount = vxSIG.balanceOf(_addr);
         uint256 oldBoostWeight = user.boostWeight;
+
+        if (oldBoostWeight > 0) {
+            uint256 boostPendingAmount = (oldBoostWeight *
+                boostAccERC20PerShare) /
+                1e36 -
+                user.boostRewardDebt;
+            _transferSIG(_addr, boostPendingAmount);
+        }
 
         uint256 newBoostWeight = _sqrt(user.amount * vxAmount);
 
