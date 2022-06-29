@@ -196,26 +196,15 @@ contract SigKSPFarmV2 is
         if (user.amount > 0) {
             uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
                 user.rewardDebt;
-
-            //if user has boost,
-            if (user.boostWeight > 0) {
-                uint256 boostPendingAmount = (user.boostWeight *
-                    boostAccERC20PerShare) /
-                    1e36 -
-                    user.boostRewardDebt;
-
-                pendingAmount += boostPendingAmount;
-            }
             _transferSIG(msg.sender, pendingAmount);
         }
+
         sigKSP.safeTransferFrom(address(msg.sender), address(this), _amount);
+
         user.amount += _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36;
-        }
+
+        _updateBoostWeight(msg.sender);
 
         emit Deposit(msg.sender, _amount);
     }
@@ -235,28 +224,12 @@ contract SigKSPFarmV2 is
         uint256 pendingAmount = ((user.amount * accERC20PerShare) / 1e36) -
             user.rewardDebt;
 
-        //if user has boost,
-        if (user.boostWeight > 0) {
-            uint256 boostPendingAmount = (user.boostWeight *
-                boostAccERC20PerShare) /
-                1e36 -
-                user.boostRewardDebt;
-            pendingAmount += boostPendingAmount;
-        }
-
         _transferSIG(msg.sender, pendingAmount);
 
         user.amount -= _amount;
         user.rewardDebt = (user.amount * accERC20PerShare) / 1e36;
-        if (user.boostWeight > 0) {
-            user.boostRewardDebt =
-                (user.boostWeight * boostAccERC20PerShare) /
-                1e36;
-            if (user.amount == 0) {
-                totalBoostWeight = totalBoostWeight - user.boostWeight;
-                user.boostWeight = 0;
-            }
-        }
+
+        _updateBoostWeight(msg.sender);
 
         sigKSP.safeTransfer(address(msg.sender), _amount);
         emit Withdraw(msg.sender, _amount);
