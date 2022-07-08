@@ -7,8 +7,20 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "../interfaces/sigma/IvxERC20.sol";
-import "../interfaces/sigma/ISigKSPFarm.sol";
+
+interface IvxERC20 {
+    function totalSupply() external view returns (uint256);
+
+    function balanceOf(address account) external view returns (uint256);
+
+    function mint(address account, uint256 amount) external;
+
+    function burn(address account, uint256 amount) external;
+}
+
+interface ISigKSPFarm {
+    function updateBoostWeight(address _user) external;
+}
 
 /// @notice  Farm distributes the sig rewards based on staked sigKSP to each user.
 /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
@@ -270,7 +282,6 @@ contract SigKSPFarmV2 is
         nonReentrant
     {
         UserInfo memory user = userInfo[_user];
-        //0. if user has amount
         if (user.amount > 0) {
             _updateBoostWeight(_user);
         }
