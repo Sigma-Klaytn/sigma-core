@@ -29,14 +29,14 @@ interface ILpFarm {
 }
 
 // Farm distributes the sig rewards based on staked LP to each user.
+// Updated on 2022. 7. 8 (FRI)
 //
 // Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
 /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
-/// @notice LpFarmV3 is different from LpFarmV1 in a way that new features for handling Lockdrop forwarded Lp tokens.
 /// changed Few variables added, UserInfo struct, few functions added.
-contract LpFarmV3 is
+contract LpFarmV4 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -495,6 +495,7 @@ contract LpFarmV3 is
         transferSIG(msg.sender, pendingAmount);
 
         user.amount -= user.lockdropAmount;
+        pool.lpToken.safeTransfer(address(msg.sender), user.lockdropAmount);
         user.lockdropAmount = 0;
         user.isLockdropLPTokenClaimed = true;
 
@@ -502,7 +503,6 @@ contract LpFarmV3 is
 
         _updateBoostWeight(msg.sender, LOCKDROP_POOL_INDEX);
 
-        pool.lpToken.safeTransfer(address(msg.sender), user.lockdropAmount);
         emit WithdrawLockdropLP(msg.sender, user.lockdropAmount);
     }
 
