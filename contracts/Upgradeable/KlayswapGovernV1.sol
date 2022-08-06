@@ -25,42 +25,6 @@ contract KlayswapGovernV1 is
     ReentrancyGuardUpgradeable,
     PausableUpgradeable
 {
-    event InitialInfoSet(
-        address vxSIG,
-        address klayswapEscrow,
-        uint256 quorumVotes,
-        uint256 votingPeriod,
-        address xSIGFarm,
-        uint256 gapTime
-    );
-
-    event KlayswapProposalAdded(
-        uint256 proposalId,
-        uint256 startBlock,
-        uint256 endBlock
-    );
-
-    /// @notice The name of this contract
-    string public constant name = "Klayswap Govern";
-    /// @notice Address of the vxSIG Token contract.
-    IvxERC20 public vxSIG;
-    /// @notice Address of xSIG farm.
-    address public xSIGFarm;
-    /// @notice Address of KlayswapEscorw contract.
-    IKlayswapEscorw public klayswapEscrow;
-
-    /// @notice The percentage of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed. It should be between 0 to 100.
-    uint256 public quorumVotes;
-    /// @notice The duration of voting on a proposal, in blocks
-    uint256 public votingPeriod;
-    /// @notice total count of proposal
-    uint256 public proposalCount;
-    /// @notice gap time with klayswap escorw.
-    uint256 public gapTime;
-
-    /// @notice voting info of user which indicate the list of voted proposal.
-    mapping(address => uint256[]) public userVoteList;
-
     struct Proposal {
         /// @notice Unique id for looking up a proposal in Klayswap.
         uint256 id;
@@ -92,6 +56,21 @@ contract KlayswapGovernV1 is
         bool canceled;
     }
 
+    event InitialInfoSet(
+        address vxSIG,
+        address klayswapEscrow,
+        uint256 quorumVotes,
+        uint256 votingPeriod,
+        address xSIGFarm,
+        uint256 gapTime
+    );
+
+    event KlayswapProposalAdded(
+        uint256 proposalId,
+        uint256 startBlock,
+        uint256 endBlock
+    );
+
     /// @notice Possible states that a proposal may be in
     enum ProposalState {
         Pending,
@@ -101,10 +80,6 @@ contract KlayswapGovernV1 is
         Forwarded,
         Expired
     }
-
-    /// @notice The official record of all proposals ever proposed
-    mapping(uint256 => Proposal) public proposals;
-
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(uint256 id, uint256 startBlock, uint256 endBlock);
 
@@ -124,6 +99,30 @@ contract KlayswapGovernV1 is
 
     /// @notice An event emitted when a proposal has been executed in the Timelock
     event ProposalExecuted(uint256 id);
+
+    /// @notice The name of this contract
+    string public constant name = "Sigma-Klayswap Govern";
+    /// @notice Address of the vxSIG Token contract.
+    IvxERC20 public vxSIG;
+    /// @notice Address of xSIG farm.
+    address public xSIGFarm;
+    /// @notice Address of KlayswapEscorw contract.
+    IKlayswapEscorw public klayswapEscrow;
+
+    /// @notice The percentage of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed. It should be between 0 to 100.
+    uint256 public quorumVotes;
+    /// @notice The duration of voting on a proposal, in blocks
+    uint256 public votingPeriod;
+    /// @notice total count of proposal
+    uint256 public proposalCount;
+    /// @notice gap time with klayswap escorw.
+    uint256 public gapTime;
+
+    /// @notice voting info of user which indicate the list of voted proposal.
+    mapping(address => uint256[]) public userVoteList;
+
+    /// @notice The official record of all proposals ever proposed
+    mapping(uint256 => Proposal) public proposals;
 
     /* ========== Restricted Function  ========== */
 
@@ -230,6 +229,7 @@ contract KlayswapGovernV1 is
         );
 
         Proposal storage newProposal = proposals[_proposalId];
+        newProposal.id = _proposalId;
         newProposal.startBlock = _startBlock;
         newProposal.endBlock = _startBlock + votingPeriod;
 
@@ -276,7 +276,7 @@ contract KlayswapGovernV1 is
         proposal.forwarded = true;
     }
 
-    function cancel(uint256 proposalId) public onlyOwner {
+    function cancel(uint256 proposalId) external onlyOwner {
         ProposalState mState = state(proposalId);
         require(
             mState != ProposalState.Forwarded,
@@ -285,6 +285,11 @@ contract KlayswapGovernV1 is
         require(
             mState != ProposalState.Canceled,
             "Cannot cancel canceled proposal"
+        );
+
+        require(
+            mState != ProposalState.Expired,
+            "Cannot cancel expired proposal"
         );
 
         Proposal storage proposal = proposals[proposalId];
@@ -311,6 +316,7 @@ contract KlayswapGovernV1 is
         Active : The proposal has been activated. 
         Canceled : The proposal has been canceled.
         Fowarded : The proposal has been forwarded.
+        Forwadable : The proposal can be forwarded to klayswap.
         Expired : The proposal has been expired since it has not met minium quorum.
         */
         Proposal storage proposal = proposals[proposalId];
@@ -332,34 +338,36 @@ contract KlayswapGovernV1 is
         }
     }
 
-    function cancelUserVote(address _user) external {
+    function cancelUserVotes(address _user) external {
         require(
             msg.sender == xSIGFarm,
             "This contract should be called from xSIG Farm."
         );
 
         uint256[] storage userVoteInfo = userVoteList[_user];
-        for (uint256 i = 0; i < userVoteInfo.length; i++) {
-            uint256 proposalId = userVoteInfo[i];
-            if (state(proposalId) == ProposalState.Active) {
-                Proposal storage proposal = proposals[proposalId];
-                Receipt storage receipt = proposal.receipts[_user];
-                if (receipt.support) {
-                    proposal.forVotes = sub256(
-                        proposal.forVotes,
-                        receipt.votes
-                    );
-                } else {
-                    proposal.againstVotes = sub256(
-                        proposal.againstVotes,
-                        receipt.votes
-                    );
+        if (userVoteInfo.length > 0) {
+            for (uint256 i = 0; i < userVoteInfo.length; i++) {
+                uint256 proposalId = userVoteInfo[i];
+                if (state(proposalId) == ProposalState.Active) {
+                    Proposal storage proposal = proposals[proposalId];
+                    Receipt storage receipt = proposal.receipts[_user];
+                    if (receipt.support) {
+                        proposal.forVotes = sub256(
+                            proposal.forVotes,
+                            receipt.votes
+                        );
+                    } else {
+                        proposal.againstVotes = sub256(
+                            proposal.againstVotes,
+                            receipt.votes
+                        );
+                    }
+                    receipt.canceled = true;
                 }
-                receipt.canceled = true;
             }
-        }
 
-        delete userVoteList[_user];
+            delete userVoteList[_user];
+        }
     }
 
     function castVote(uint256 proposalId, bool support) public {
@@ -381,10 +389,7 @@ contract KlayswapGovernV1 is
 
         Proposal storage proposal = proposals[proposalId];
         Receipt storage receipt = proposal.receipts[voter];
-        require(
-            receipt.hasVoted == false && receipt.canceled == false,
-            "Voter already voted"
-        );
+        require(receipt.hasVoted == false, "Voter already voted");
 
         if (support) {
             proposal.forVotes = add256(proposal.forVotes, votes);
@@ -410,5 +415,9 @@ contract KlayswapGovernV1 is
     function sub256(uint256 a, uint256 b) internal pure returns (uint256) {
         require(b <= a, "subtraction underflow");
         return a - b;
+    }
+
+    function getBlockNumber() public view returns (uint256) {
+        return block.number;
     }
 }
