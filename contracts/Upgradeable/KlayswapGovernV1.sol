@@ -115,6 +115,8 @@ contract KlayswapGovernV1 is
     uint256 public votingPeriod;
     /// @notice total count of proposal
     uint256 public proposalCount;
+    /// @notice total proposal list
+    uint256[] public proposalList;
     /// @notice gap time with klayswap escorw.
     uint256 public gapTime;
 
@@ -234,6 +236,7 @@ contract KlayswapGovernV1 is
         newProposal.endBlock = _startBlock + votingPeriod;
 
         proposalCount++;
+        proposalList.push(_proposalId);
         emit KlayswapProposalAdded(
             _proposalId,
             _startBlock,
