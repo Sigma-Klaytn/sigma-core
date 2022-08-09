@@ -41,7 +41,6 @@ contract SigFarmV1 is
         uint256 unlockTime;
         uint256 xSIGAmount;
         uint256 SIGAmount;
-        bool isWithdrawn;
     }
 
     event Unstake(uint256 redeemedxSIG, uint256 sigQueued);
@@ -107,7 +106,7 @@ contract SigFarmV1 is
     function stake(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount > 0, "Stake SIG amount should be bigger than 0");
         require(
-            SIG.balanceOf(msg.sender) > _amount,
+            SIG.balanceOf(msg.sender) >= _amount,
             "Not enough SIG amount to stake."
         );
         SIG.safeTransferFrom(msg.sender, address(this), _amount);
@@ -134,7 +133,7 @@ contract SigFarmV1 is
     function unstake(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount > 0, "Redeem xSIG should be bigger than 0");
         require(
-            xSIG.balanceOf(msg.sender) > _amount,
+            xSIG.balanceOf(msg.sender) >= _amount,
             "Not enough xSIG amount to unstake."
         );
         xSIG.safeTransferFrom(msg.sender, address(this), _amount);
@@ -151,8 +150,7 @@ contract SigFarmV1 is
             WithdrawInfo({
                 unlockTime: endTime,
                 xSIGAmount: _amount,
-                SIGAmount: sigToReturn,
-                isWithdrawn: false
+                SIGAmount: sigToReturn
             })
         );
 
@@ -201,18 +199,44 @@ contract SigFarmV1 is
         internal
         returns (uint256, uint256)
     {
-        WithdrawInfo[] storage withdrawableInfos = withdrawInfoOf[_user];
         uint256 withdrawableSIG = 0;
         uint256 totalBurningxSIG = 0;
 
-        for (uint256 i = 0; i < withdrawableInfos.length; i++) {
+        WithdrawInfo[] storage withdrawableInfos = withdrawInfoOf[_user];
+
+        uint256 withdrawableInfosLength = withdrawableInfos.length;
+        WithdrawInfo[] memory newList = new WithdrawInfo[](
+            withdrawableInfosLength
+        );
+        uint256 newListIndex = 0;
+
+        for (uint256 i = 0; i < withdrawableInfosLength; i++) {
             WithdrawInfo storage withdrawInfo = withdrawableInfos[i];
-            if (!withdrawInfo.isWithdrawn) {
-                if (withdrawInfo.unlockTime < block.timestamp) {
-                    withdrawableSIG += withdrawInfo.SIGAmount;
-                    totalBurningxSIG += withdrawInfo.xSIGAmount;
-                    withdrawInfo.isWithdrawn = true;
-                }
+            if (withdrawInfo.unlockTime <= block.timestamp) {
+                withdrawableSIG += withdrawInfo.SIGAmount;
+                totalBurningxSIG += withdrawInfo.xSIGAmount;
+            } else {
+                newList[newListIndex++] = withdrawInfo;
+            }
+        }
+
+        uint256 emptyArrayCount = 0;
+
+        for (uint256 i = 0; i < withdrawableInfosLength; i++) {
+            if (newList[i].unlockTime == 0) {
+                emptyArrayCount++;
+            }
+        }
+
+        delete withdrawInfoOf[_user];
+
+        if (emptyArrayCount != withdrawableInfosLength) {
+            for (
+                uint256 i = 0;
+                i < withdrawableInfosLength - emptyArrayCount;
+                i++
+            ) {
+                withdrawInfoOf[_user].push(newList[i]);
             }
         }
 
@@ -234,10 +258,8 @@ contract SigFarmV1 is
 
         for (uint256 i = 0; i < withdrawableInfos.length; i++) {
             WithdrawInfo memory withdrawInfo = withdrawableInfos[i];
-            if (!withdrawInfo.isWithdrawn) {
-                if (withdrawInfo.unlockTime < block.timestamp) {
-                    withdrawableSIG += withdrawInfo.SIGAmount;
-                }
+            if (withdrawInfo.unlockTime <= block.timestamp) {
+                withdrawableSIG += withdrawInfo.SIGAmount;
             }
         }
         return withdrawableSIG;
@@ -270,9 +292,7 @@ contract SigFarmV1 is
             withdrawableInfos.length
         );
         for (uint256 i = 0; i < withdrawableInfos.length; i++) {
-            if (!withdrawableInfos[i].isWithdrawn) {
-                info[i] = withdrawableInfos[i];
-            }
+            info[i] = withdrawableInfos[i];
         }
         return info;
     }

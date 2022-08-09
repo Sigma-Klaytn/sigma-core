@@ -23,6 +23,9 @@ coverageEnv
 # Dependency directory
 node_modules
 
+
+
+contracts/MockERC20.sol
 # Debug log from npm
 npm-debug.log
 
@@ -46,7 +49,6 @@ docs/modules/api
 
 # only used to package @openzeppelin/contracts
 contracts/build/
-contracts/README.md
 
 # temporary artifact from solidity-coverage
 allFiredEvents

@@ -54,6 +54,8 @@ contract LockdropLpFarmProxyV1 is
         lpFarm = ILpFarm(_lpFarm);
         // totalLockdropDeposit = 227100212865627939698517;
         totalLockdropDeposit = _totalLockdropDeposit;
+
+        lpToken.approve(_lpFarm, type(uint256).max);
     }
 
     /* ========== External & Public FUNCTIONS ========== */

@@ -535,7 +535,7 @@ contract SigmaVoterV1 is
         uint256 _minTopVoteMem = type(uint256).max;
         uint256 _minTopVoteIndexMem = 0;
         for (uint256 i = 1; i < length; i++) {
-            uint256 value = t[i] % 2**39;
+            uint256 value = t[i] % 2**40;
             if (value < _minTopVoteMem) {
                 _minTopVoteMem = value;
                 _minTopVoteIndexMem = i;
@@ -739,6 +739,28 @@ contract SigmaVoterV1 is
             return 0;
         } else {
             return userPoolVotes[_user].length - 1;
+        }
+    }
+
+    /**
+        @notice Get User Current Pool Votes. 
+        @param _user address of user
+     */
+    function getUserPoolVotes(address _user)
+        external
+        view
+        returns (PoolVote[] memory)
+    {
+        PoolVote[] memory userVotes = userPoolVotes[_user];
+        if (userVotes.length != 0) {
+            PoolVote[] memory votes = new PoolVote[](userVotes.length - 1);
+            for (uint256 i = 1; i < userVotes.length; i++) {
+                votes[i - 1] = userVotes[i];
+            }
+            return votes;
+        } else {
+            PoolVote[] memory votes = new PoolVote[](0);
+            return votes;
         }
     }
 }

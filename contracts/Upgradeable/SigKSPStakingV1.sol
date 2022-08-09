@@ -178,6 +178,7 @@ contract SigKSPStakingV1 is
         updateReward(msg.sender)
     {
         require(amount > 0, "Cannot withdraw 0");
+        require(balanceOf[msg.sender] >= amount, "Balance is not enough.");
         _claimReward();
         totalSupply -= amount;
         balanceOf[msg.sender] -= amount;
@@ -219,7 +220,7 @@ contract SigKSPStakingV1 is
     }
 
     /* ========== Internal & Private Function  ========== */
-    function _claimReward() private updateReward(msg.sender) {
+    function _claimReward() private {
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             address token = rewardTokens[i];
             if (token != address(0)) {
