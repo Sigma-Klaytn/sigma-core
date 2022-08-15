@@ -23,6 +23,8 @@ coverageEnv
 # Dependency directory
 node_modules
 
+# Test Files
+test
 
 
 contracts/MockERC20.sol
