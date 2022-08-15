@@ -22,6 +22,7 @@ const {
     time
 } = require('../Utils/JS');
 const { MAX_INT256 } = require('@openzeppelin/test-helpers/src/constants');
+const { BigNumber } = require('ethers');
 
 /**
  * [Check Point]
@@ -91,9 +92,11 @@ contract('KlayswapGovernV1', function (accounts) {
             KlayswapEscrowGovern = await makeKlayswapEscrowGovernTest();
             xSIGFarmGovern = await makeXSIGFarmGovernTest();
 
-            VOTING_PERIOD = new BN(100)
+            VOTING_PERIOD = new BN(30)
             QUORUM_VOTES = new BN(10)
             GAP_TIME = new BN(100)
+
+            await vxSIGToken.setOperator([root]);
         });
 
         it('Test : 0.SetInitialInfo', async () => {
@@ -110,7 +113,7 @@ contract('KlayswapGovernV1', function (accounts) {
             await klayswapGovern.setInitialInfo(vxSIGToken.address, KlayswapEscrowGovern.address, QUORUM_VOTES, VOTING_PERIOD, xSIGFarmGovern.address, GAP_TIME, { from: root })
 
             expectEqual(await klayswapGovern.quorumVotes(), new BN(10));
-            expectEqual(await klayswapGovern.votingPeriod(), new BN(100));
+            expectEqual(await klayswapGovern.votingPeriod(), new BN(30));
             expectEqual(await klayswapGovern.proposalCount(), new BN(0));
             expectEqual(await klayswapGovern.vxSIG(), vxSIGToken.address);
             expectEqual(await klayswapGovern.xSIGFarm(), xSIGFarmGovern.address);
@@ -134,12 +137,18 @@ contract('KlayswapGovernV1', function (accounts) {
 
             //1. Add Proposal with start block. 
             let currentBlockNum = (await web3.eth.getBlockNumber()).toString()
-            console.log(currentBlockNum);
+            console.log('current block number ', currentBlockNum);
             const startBlock = (new BN(currentBlockNum)).add(new BN(10))
             const klayswapProposalId = new BN(10)
-            let receipt = klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock)
+            let receipt = await klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock)
 
             expectEqual(await klayswapGovern.proposalCount(), new BN(1))
+
+            expectEvent(receipt, "KlayswapProposalAdded", {
+                proposalId: klayswapProposalId,
+                startBlock: startBlock,
+                endBlock: startBlock.add(VOTING_PERIOD)
+            })
 
 
             /** Proposal 
@@ -164,23 +173,363 @@ contract('KlayswapGovernV1', function (accounts) {
             expectEqual(proposal[5], false);
             expectEqual(proposal[6], false);
 
-            console.log(proposal)
+            console.log(proposal[7])
 
-
-
-
-
-
-            //2. Check Variables.
 
             //3. Check Revert. 
+            await expectRevert(klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock), "Proposal collision. There is already proposal with the given _proposalId")
+
+            //4. Check Proposal's state.
+            console.log("current proposal state : ", (await klayswapGovern.state(klayswapProposalId)).toString())
+        });
+
+        it('Test : 3 . User Vote for the Proposal', async () => {
+            await vxSIGToken.mint(userA, bnMantissa(100), { from: root })
+            await vxSIGToken.mint(userB, bnMantissa(200), { from: root })
+            await vxSIGToken.mint(userC, bnMantissa(300), { from: root })
+
+            const klayswapProposalId = new BN(10)
+
+            // 0. Check Reverts.
+            await expectRevert(klayswapGovern.castVote(new BN(0), false), "invalid proposal id")
+            await expectRevert(klayswapGovern.castVote(klayswapProposalId, false), "Voting is not active.")
 
 
+            // 1. User A Cast vote.
+            let currentBlockNum = (await web3.eth.getBlockNumber()).toString()
+            console.log('current block number ', currentBlockNum);
+            for (let i = 0; i < 10; i++) {
+                evmMine()
+            }
+            await expectRevert(klayswapGovern.castVote(klayswapProposalId, true, { from: root }), "No vxSIG to vote. It should be >= 1")
+
+            let receipt = await klayswapGovern.castVote(klayswapProposalId, true, { from: userA })
+
+            // try to revote. 
+            await expectRevert(klayswapGovern.castVote(klayswapProposalId, true, { from: userA }), "Voter already voted")
+
+            // 2. Check event and variable of the proposal. 
+            expectEvent(receipt, "VoteCast", {
+                voter: userA,
+                proposalId: klayswapProposalId,
+                support: true,
+                votes: new BN(100)
+            })
+
+
+
+            // 3. Get receipt
+
+            let voteReceipt = await klayswapGovern.getReceipt(klayswapProposalId, userA)
+            expectEqual(voteReceipt[0], true)
+            expectEqual(voteReceipt[1], true)
+            expectEqual(voteReceipt[2], new BN(100))
+            expectEqual(voteReceipt[3], false)
+
+            // 4. Check Proposal Variables
+
+            let proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(100));
+            expectEqual(proposal[4], new BN(0));
+            expectEqual(proposal[5], false);
+            expectEqual(proposal[6], false);
+
+            // 4-1. Check that unvote user receipt
+
+            voteReceipt = await klayswapGovern.getReceipt(klayswapProposalId, userB)
+            expectEqual(voteReceipt[0], false)
+            expectEqual(voteReceipt[1], false)
+            expectEqual(voteReceipt[2], new BN(0))
+            expectEqual(voteReceipt[3], false)
+
+            // 5. User B cast Vote
+            let receipt2 = await klayswapGovern.castVote(klayswapProposalId, true, { from: userB })
+            expectEvent(receipt2, "VoteCast", {
+                voter: userB,
+                proposalId: klayswapProposalId,
+                support: true,
+                votes: new BN(200)
+            })
+
+            // 6. Check User B Vote 
+            proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(300));
+            expectEqual(proposal[4], new BN(0));
+            expectEqual(proposal[5], false);
+            expectEqual(proposal[6], false);
+
+            voteReceipt = await klayswapGovern.getReceipt(klayswapProposalId, userB)
+            expectEqual(voteReceipt[0], true)
+            expectEqual(voteReceipt[1], true)
+            expectEqual(voteReceipt[2], new BN(200))
+            expectEqual(voteReceipt[3], false)
+
+            // 7. User C cast vote 
+            let receipt3 = await klayswapGovern.castVote(klayswapProposalId, false, { from: userC })
+            expectEvent(receipt3, "VoteCast", {
+                voter: userC,
+                proposalId: klayswapProposalId,
+                support: false,
+                votes: new BN(300)
+            })
+
+            proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(300));
+            expectEqual(proposal[4], new BN(300));
+            expectEqual(proposal[5], false);
+            expectEqual(proposal[6], false);
+
+            voteReceipt = await klayswapGovern.getReceipt(klayswapProposalId, userC)
+            expectEqual(voteReceipt[0], true)
+            expectEqual(voteReceipt[1], false)
+            expectEqual(voteReceipt[2], new BN(300))
+            expectEqual(voteReceipt[3], false)
+
+            currentBlockNum = (await web3.eth.getBlockNumber()).toString()
+            console.log('current block number after voting', currentBlockNum);
+        })
+
+
+        it('Test : 4. Forward Vote to Klayswap ', async () => {
+
+            const klayswapProposalId = new BN(10)
+
+            let proposal = await klayswapGovern.proposals(klayswapProposalId);
+            console.log("Proposal Start Block : ", proposal[1].toString());
+            console.log("Proposal End Block : ", proposal[2].toString());
+            console.log("Proposal state : ", (await klayswapGovern.state(klayswapProposalId)).toString())
+
+            // 0. Check Reverts.
+
+            await expectRevert(klayswapGovern.forwardVoteResultToKlayswap(klayswapProposalId), "Currently this proposal is not forwardable.")
+
+            // 1. Qurom Check. 
+            for (let i = 0; i < VOTING_PERIOD; i++) {
+                evmMine()
+            }
+
+            console.log("Proposal state : Should be 3 ", (await klayswapGovern.state(klayswapProposalId)).toString())
+
+
+            // Change vxSIG Total supply to 6100. So that Quorum doesn't pass. 
+            console.log('before vxSIG Total Supply : ', (await vxSIGToken.totalSupply()).toString())
+            await vxSIGToken.mint(userD, bnMantissa(5500), { from: root })
+            console.log('after vxSIG Total Supply : ', (await vxSIGToken.totalSupply()).toString())
+
+            await expectRevert(klayswapGovern.forwardVoteResultToKlayswap(klayswapProposalId), "Quorum has not been satisfied.")
+
+            // 2.  Change Quorum to 5 
+            await expectRevert(klayswapGovern.setQuorumVotes(new BN(5), { from: userA }), 'Ownable: caller is not the owner')
+            await klayswapGovern.setQuorumVotes(new BN(5), { from: root })
+
+            // 3. proposal forwarding. 
+
+            let receipt = await klayswapGovern.forwardVoteResultToKlayswap(klayswapProposalId)
+            await expectEvent.inTransaction(receipt.tx, KlayswapEscrowGovernTest, "CastVote", {
+                proposalId: klayswapProposalId,
+                support: false
+            })
+
+            // Check Variable
+            expectEqual(await klayswapGovern.state(klayswapProposalId), new BN(4))
+            expectEqual((await klayswapGovern.proposals(klayswapProposalId))[6], true)
+
+            // 4. Check reverts agian.
+            await expectRevert(klayswapGovern.forwardVoteResultToKlayswap(klayswapProposalId), "Currently this proposal is not forwardable.")
+        });
+
+        it('Test : 5. Add Proposal & Cancel Proposal ', async () => {
+
+            //1. Add Proposal with start block. 
+            let currentBlockNum = (await web3.eth.getBlockNumber()).toString()
+            console.log('current block number ', currentBlockNum);
+            let startBlock = (new BN(currentBlockNum)).add(new BN(0))
+            let klayswapProposalId = new BN(11)
+            let receipt = await klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock)
+
+            expectEqual(await klayswapGovern.proposalCount(), new BN(2))
+
+            expectEvent(receipt, "KlayswapProposalAdded", {
+                proposalId: klayswapProposalId,
+                startBlock: startBlock,
+                endBlock: startBlock.add(VOTING_PERIOD)
+            })
+
+            let proposal = await klayswapGovern.proposals(klayswapProposalId);
+            console.log("Proposal Start Block : ", proposal[1].toString());
+            console.log("Proposal End Block : ", proposal[2].toString());
+            console.log("Proposal state : ", (await klayswapGovern.state(klayswapProposalId)).toString())
+
+
+            // 1. User Vote for the newly active proposal
+            await klayswapGovern.castVote(klayswapProposalId, true, { from: userA })
+            await klayswapGovern.castVote(klayswapProposalId, false, { from: userB })
+
+            proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(100));
+            expectEqual(proposal[4], new BN(200));
+            expectEqual(proposal[5], false);
+            expectEqual(proposal[6], false);
+
+            // 2. Check Revert (Only Owner)
+            await expectRevert(klayswapGovern.cancel(klayswapProposalId, { from: userA }), 'Ownable: caller is not the owner')
+
+            // 3. Cancel the proposal 
+            receipt = await klayswapGovern.cancel(klayswapProposalId, { from: root })
+
+            expectEvent(receipt, "ProposalCanceled", { id: klayswapProposalId })
+
+            // 4. CHeck REvert (Try to re-cancel the canceled proposal)
+            await expectRevert(klayswapGovern.cancel(klayswapProposalId, { from: root }), "Cannot cancel canceled proposal")
+
+            // 5. Check the variable
+            proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(100));
+            expectEqual(proposal[4], new BN(200));
+            expectEqual(proposal[5], true);
+            expectEqual(proposal[6], false);
+
+            // 6. Check the state. 
+            expectEqual(await klayswapGovern.state(klayswapProposalId), new BN(2))
+
+            // 7. Forward the proposal and check the revert and state. 
+
+            // Add Proposal with start block. 
+            currentBlockNum = (await web3.eth.getBlockNumber()).toString()
+            console.log('current block number ', currentBlockNum);
+            startBlock = (new BN(currentBlockNum)).add(new BN(0))
+            klayswapProposalId = new BN(12)
+            receipt = await klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock)
+            expectEqual(await klayswapGovern.proposalCount(), new BN(3))
+
+            // User Vote for the newly active proposal
+            await klayswapGovern.castVote(klayswapProposalId, true, { from: userA })
+            await klayswapGovern.castVote(klayswapProposalId, false, { from: userB })
+            await klayswapGovern.castVote(klayswapProposalId, false, { from: userC })
+
+            // Mine
+            for (let i = 0; i < VOTING_PERIOD; i++) {
+                evmMine()
+            }
+
+            //Forward 
+            receipt = await klayswapGovern.forwardVoteResultToKlayswap(klayswapProposalId)
+            await expectEvent.inTransaction(receipt.tx, KlayswapEscrowGovernTest, "CastVote", {
+                proposalId: klayswapProposalId,
+                support: false
+            })
+
+            // Check Variable
+            expectEqual(await klayswapGovern.state(klayswapProposalId), new BN(4))
+            expectEqual((await klayswapGovern.proposals(klayswapProposalId))[6], true)
+
+            // Check revert (Shouldn't be fowarded)
+            await expectRevert(klayswapGovern.cancel(klayswapProposalId, { from: root }), "Cannot cancel forwarded proposal")
+
+            // 8. Expire the proposal and check the revert and state.
+            // Add Proposal with start block. 
+            const newGapAndVotingTime = 5
+            await klayswapGovern.setGapTime(new BN(newGapAndVotingTime), { from: root })
+            await klayswapGovern.setVotingPeriod(new BN(newGapAndVotingTime), { from: root })
+
+            currentBlockNum = (await web3.eth.getBlockNumber()).toString()
+            console.log('current block number ', currentBlockNum);
+            startBlock = (new BN(currentBlockNum)).add(new BN(0))
+            klayswapProposalId = new BN(13)
+            receipt = await klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock)
+            expectEqual(await klayswapGovern.proposalCount(), new BN(4))
+
+
+            // Mine
+            for (let i = 0; i < newGapAndVotingTime * 2 + 1; i++) {
+                evmMine()
+            }
+
+            expectEqual(await klayswapGovern.state(klayswapProposalId), new BN(5)) // expired
+            await expectRevert(klayswapGovern.cancel(klayswapProposalId, { from: root }), "Cannot cancel expired proposal")
 
 
         });
 
+        it('Test : 6. Add Proposals & User unstake xSIG which cause vxSIG initialization.', async () => {
+
+            // 0. reset new gap and voting time.
+            const newGapAndVotingTime = 10
+            await klayswapGovern.setGapTime(new BN(newGapAndVotingTime), { from: root })
+            await klayswapGovern.setVotingPeriod(new BN(newGapAndVotingTime), { from: root })
+
+
+            //1. Add Proposal with start block. 
+            let currentBlockNum = (await web3.eth.getBlockNumber()).toString()
+            console.log('current block number ', currentBlockNum);
+            let startBlock = (new BN(currentBlockNum)).add(new BN(0))
+            let klayswapProposalId = new BN(14)
+            let receipt = await klayswapGovern.addKlayswapProposal(klayswapProposalId, startBlock)
+
+            expectEqual(await klayswapGovern.proposalCount(), new BN(5))
+
+            let proposal = await klayswapGovern.proposals(klayswapProposalId);
+            console.log("Proposal Start Block : ", proposal[1].toString());
+            console.log("Proposal End Block : ", proposal[2].toString());
+            console.log("Proposal state : ", (await klayswapGovern.state(klayswapProposalId)).toString())
+
+
+            // 1. User Vote for the newly active proposal
+            await klayswapGovern.castVote(klayswapProposalId, true, { from: userA })
+            await klayswapGovern.castVote(klayswapProposalId, false, { from: userB })
+
+            proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(100));
+            expectEqual(proposal[4], new BN(200));
+            expectEqual(proposal[5], false);
+            expectEqual(proposal[6], false);
+
+            // 2. Check User A Vote Receipt
+
+            let voteReceipt = await klayswapGovern.getReceipt(klayswapProposalId, userA)
+            let beforeUserVoteList = await klayswapGovern.getUserVoteList(userA)
+            console.log('beforeUserVoteList : ', beforeUserVoteList.length)
+            expectEqual(voteReceipt[0], true)
+            expectEqual(voteReceipt[1], true)
+            expectEqual(voteReceipt[2], new BN(100))
+            expectEqual(voteReceipt[3], false)
+
+            // 3. Check Revert 
+            await expectRevert(klayswapGovern.cancelUserVotes(userA), "This contract should be called from xSIG Farm.")
+
+            // 4. Unstake vxSIG 
+            await xSIGFarmGovern.unstake({ from: userA })
+
+            let afterUserVoteList = await klayswapGovern.getUserVoteList(userA)
+            console.log('afterUserVoteList : ', afterUserVoteList.length)
+            expectEqual(afterUserVoteList.length, 0)
+
+            voteReceipt = await klayswapGovern.getReceipt(klayswapProposalId, userA)
+            expectEqual(voteReceipt[0], true)
+            expectEqual(voteReceipt[1], true)
+            expectEqual(voteReceipt[2], new BN(100))
+            expectEqual(voteReceipt[3], true)
+
+            // 5. Check proposal values
+            proposal = await klayswapGovern.proposals(klayswapProposalId);
+            expectEqual(proposal[0], klayswapProposalId);
+            expectEqual(proposal[3], new BN(0)); // changed.
+            expectEqual(proposal[4], new BN(200));
+            expectEqual(proposal[5], false);
+            expectEqual(proposal[6], false);
+
+            // 6. Try to revote to the canceled one
+            await expectRevert(klayswapGovern.castVote(klayswapProposalId, true, { from: userA }), "Voter already voted")
+
+        });
     })
+
 });
 
 // async function getAllPoolVote() {

@@ -94,9 +94,6 @@ contract KlayswapGovernV1 is
     /// @notice An event emitted when a proposal has been canceled
     event ProposalCanceled(uint256 id);
 
-    /// @notice An event emitted when a proposal has been queued in the Timelock
-    event ProposalQueued(uint256 id, uint256 eta);
-
     /// @notice An event emitted when a proposal has been executed in the Timelock
     event ProposalExecuted(uint256 id);
 
@@ -221,6 +218,28 @@ contract KlayswapGovernV1 is
         gapTime = _gapTime;
     }
 
+    /**
+     @notice sets start block of proposal 
+     */
+    //TODO : SHOULD BE CALLED BY GOVERNOR
+    function setStartBlockOfProposal(uint256 _proposalId, uint256 _startBlock)
+        external
+        onlyOwner
+    {
+        proposals[_proposalId].startBlock = _startBlock;
+    }
+
+    /**
+     @notice sets end block of proposal 
+     */
+    //TODO : SHOULD BE CALLED BY GOVERNOR
+    function setEndBlockOfProposal(uint256 _proposalId, uint256 _endBlock)
+        external
+        onlyOwner
+    {
+        proposals[_proposalId].endBlock = _endBlock;
+    }
+
     function addKlayswapProposal(uint256 _proposalId, uint256 _startBlock)
         external
         onlyOwner
@@ -244,7 +263,9 @@ contract KlayswapGovernV1 is
         );
     }
 
-    function forwardVoteResultToKlayswap(uint256 _proposalId) public {
+    /* ========== External Public Function  ========== */
+
+    function forwardVoteResultToKlayswap(uint256 _proposalId) external {
         require(
             state(_proposalId) == ProposalState.Forwardable,
             "Currently this proposal is not forwardable."
@@ -252,11 +273,6 @@ contract KlayswapGovernV1 is
 
         // Check if that pass the minimum participation rate
         Proposal storage proposal = proposals[_proposalId];
-
-        require(
-            proposal.forwarded == false,
-            "Proposal has been already fowarded"
-        );
 
         // If that pass the minimum participation rate, forward it to klayswap through KlayswapEscrow contract.
         if (quorumVotes != 0) {
@@ -301,6 +317,93 @@ contract KlayswapGovernV1 is
         emit ProposalCanceled(proposalId);
     }
 
+    function cancelUserVotes(address _user) external {
+        require(
+            msg.sender == xSIGFarm,
+            "This contract should be called from xSIG Farm."
+        );
+
+        uint256[] storage userVoteInfo = userVoteList[_user];
+        if (userVoteInfo.length > 0) {
+            for (uint256 i = 0; i < userVoteInfo.length; i++) {
+                uint256 proposalId = userVoteInfo[i];
+                if (state(proposalId) == ProposalState.Active) {
+                    Proposal storage proposal = proposals[proposalId];
+                    Receipt storage receipt = proposal.receipts[_user];
+                    if (receipt.support) {
+                        proposal.forVotes = sub256(
+                            proposal.forVotes,
+                            receipt.votes
+                        );
+                    } else {
+                        proposal.againstVotes = sub256(
+                            proposal.againstVotes,
+                            receipt.votes
+                        );
+                    }
+                    receipt.canceled = true;
+                }
+            }
+
+            delete userVoteList[_user];
+        }
+    }
+
+    function castVote(uint256 proposalId, bool support) public {
+        return _castVote(msg.sender, proposalId, support);
+    }
+
+    /* ========== Internal Function  ========== */
+
+    function _castVote(
+        address voter,
+        uint256 proposalId,
+        bool support
+    ) internal {
+        require(
+            state(proposalId) == ProposalState.Active,
+            "Voting is not active."
+        );
+
+        uint256 votes = vxSIG.balanceOf(voter) / 1e18;
+        require(votes > 0, "No vxSIG to vote. It should be >= 1");
+
+        Proposal storage proposal = proposals[proposalId];
+        Receipt storage receipt = proposal.receipts[voter];
+        require(receipt.hasVoted == false, "Voter already voted");
+
+        if (support) {
+            proposal.forVotes = add256(proposal.forVotes, votes);
+        } else {
+            proposal.againstVotes = add256(proposal.againstVotes, votes);
+        }
+
+        receipt.hasVoted = true;
+        receipt.support = support;
+        receipt.votes = votes;
+
+        userVoteList[voter].push(proposalId);
+
+        emit VoteCast(voter, proposalId, support, votes);
+    }
+
+    /* ========== View & Pure Function  ========== */
+
+    function add256(uint256 a, uint256 b) internal pure returns (uint256) {
+        uint256 c = a + b;
+        require(c >= a, "addition overflow");
+        return c;
+    }
+
+    function sub256(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b <= a, "subtraction underflow");
+        return a - b;
+    }
+
+    function getBlockNumber() public view returns (uint256) {
+        return block.number;
+    }
+
     function getReceipt(uint256 proposalId, address voter)
         public
         view
@@ -341,86 +444,21 @@ contract KlayswapGovernV1 is
         }
     }
 
-    function cancelUserVotes(address _user) external {
-        require(
-            msg.sender == xSIGFarm,
-            "This contract should be called from xSIG Farm."
-        );
-
-        uint256[] storage userVoteInfo = userVoteList[_user];
-        if (userVoteInfo.length > 0) {
-            for (uint256 i = 0; i < userVoteInfo.length; i++) {
-                uint256 proposalId = userVoteInfo[i];
-                if (state(proposalId) == ProposalState.Active) {
-                    Proposal storage proposal = proposals[proposalId];
-                    Receipt storage receipt = proposal.receipts[_user];
-                    if (receipt.support) {
-                        proposal.forVotes = sub256(
-                            proposal.forVotes,
-                            receipt.votes
-                        );
-                    } else {
-                        proposal.againstVotes = sub256(
-                            proposal.againstVotes,
-                            receipt.votes
-                        );
-                    }
-                    receipt.canceled = true;
-                }
+    function getUserVoteList(address _voter)
+        public
+        view
+        returns (uint256[] memory)
+    {
+        uint256[] memory userVotes = userVoteList[_voter];
+        if (userVotes.length != 0) {
+            uint256[] memory votes = new uint256[](userVotes.length);
+            for (uint256 i = 0; i < userVotes.length; i++) {
+                votes[i] = userVotes[i];
             }
-
-            delete userVoteList[_user];
-        }
-    }
-
-    function castVote(uint256 proposalId, bool support) public {
-        return _castVote(msg.sender, proposalId, support);
-    }
-
-    function _castVote(
-        address voter,
-        uint256 proposalId,
-        bool support
-    ) internal {
-        require(
-            state(proposalId) == ProposalState.Active,
-            "Voting is not active."
-        );
-
-        uint256 votes = vxSIG.balanceOf(voter) / 1e18;
-        require(votes > 0, "No vxSIG to vote. It should be >= 1");
-
-        Proposal storage proposal = proposals[proposalId];
-        Receipt storage receipt = proposal.receipts[voter];
-        require(receipt.hasVoted == false, "Voter already voted");
-
-        if (support) {
-            proposal.forVotes = add256(proposal.forVotes, votes);
+            return votes;
         } else {
-            proposal.againstVotes = add256(proposal.againstVotes, votes);
+            uint256[] memory votes = new uint256[](0);
+            return votes;
         }
-
-        receipt.hasVoted = true;
-        receipt.support = support;
-        receipt.votes = votes;
-
-        userVoteList[voter].push(proposalId);
-
-        emit VoteCast(voter, proposalId, support, votes);
-    }
-
-    function add256(uint256 a, uint256 b) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, "addition overflow");
-        return c;
-    }
-
-    function sub256(uint256 a, uint256 b) internal pure returns (uint256) {
-        require(b <= a, "subtraction underflow");
-        return a - b;
-    }
-
-    function getBlockNumber() public view returns (uint256) {
-        return block.number;
     }
 }

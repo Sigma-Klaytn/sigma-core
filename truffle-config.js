@@ -11,6 +11,7 @@ module.exports = {
             port: 8545,
             network_id: '*', // Match any network id,
             gas: '6721975',
+            networkCheckTimeout: 1000000,
 
         },
         klaytn: {
