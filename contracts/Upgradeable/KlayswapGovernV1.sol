@@ -80,8 +80,6 @@ contract KlayswapGovernV1 is
         Forwarded,
         Expired
     }
-    /// @notice An event emitted when a new proposal is created
-    event ProposalCreated(uint256 id, uint256 startBlock, uint256 endBlock);
 
     /// @notice An event emitted when a vote has been cast on a proposal
     event VoteCast(
@@ -226,6 +224,10 @@ contract KlayswapGovernV1 is
         external
         onlyOwner
     {
+        require(
+            _proposalId > 0 && proposals[_proposalId].id != 0,
+            "invalid proposal id"
+        );
         proposals[_proposalId].startBlock = _startBlock;
     }
 
@@ -237,6 +239,10 @@ contract KlayswapGovernV1 is
         external
         onlyOwner
     {
+        require(
+            _proposalId > 0 && proposals[_proposalId].id != 0,
+            "invalid proposal id"
+        );
         proposals[_proposalId].endBlock = _endBlock;
     }
 
