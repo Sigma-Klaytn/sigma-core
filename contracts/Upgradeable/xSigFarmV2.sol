@@ -8,16 +8,104 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "../interfaces/sigma/IWhitelist.sol";
-import "../interfaces/sigma/IxSIGFarm.sol";
-import "../interfaces/sigma/IvxERC20.sol";
+interface IWhitelist {
+    function approveWallet(address _wallet) external;
 
-import "../interfaces/sigma/ISigmaVoter.sol";
-import "../interfaces/sigma/ISigKSPFarm.sol";
-import "../interfaces/sigma/ILpFarm.sol";
-import "../interfaces/sigma/IKlayswapGovern.sol";
+    function revokeWallet(address _wallet) external;
 
-import "../libraries/DSMath.sol";
+    function check(address _wallet) external view returns (bool);
+}
+
+interface IxSIGFarm {
+    function isUser(address _addr) external view returns (bool);
+
+    function stake(uint256 _amount) external;
+
+    function unstake(uint256 _amount) external;
+
+    function claimAndActivateBoost() external;
+
+    function getStakedXSIG(address _addr) external view returns (uint256);
+}
+
+interface IvxERC20 {
+    function totalSupply() external view returns (uint256);
+
+    function balanceOf(address account) external view returns (uint256);
+
+    function mint(address account, uint256 amount) external;
+
+    function burn(address account, uint256 amount) external;
+}
+
+interface ISigmaVoter {
+    function getCurrentVotes()
+        external
+        view
+        returns (
+            uint256 weightsTotal,
+            address[] memory pools,
+            uint256[] memory weights
+        );
+
+    function getUserVotesCount(address _user) external view returns (uint256);
+
+    function deleteAllPoolVoteFromXSIGFarm(address _user) external;
+}
+
+interface ISigKSPFarm {
+    function updateBoostWeight(address _user) external;
+}
+
+interface ILpFarm {
+    function updateBoostWeight(address _user) external;
+
+    function forwardLpTokensFromLockdrop(
+        address _user,
+        uint256 _amount,
+        uint256 _lockingPeriod
+    ) external;
+}
+
+interface IKlayswapGovern {
+    function cancelUserVotes(address _user) external;
+}
+
+library DSMath {
+    uint256 public constant WAD = 10**18;
+    uint256 public constant RAY = 10**27;
+
+    //rounds to zero if x*y < WAD / 2
+    function wmul(uint256 x, uint256 y) internal pure returns (uint256) {
+        return ((x * y) + (WAD / 2)) / WAD;
+    }
+
+    //rounds to zero if x*y < WAD / 2
+    function wdiv(uint256 x, uint256 y) internal pure returns (uint256) {
+        return ((x * WAD) + (y / 2)) / y;
+    }
+
+    function reciprocal(uint256 x) internal pure returns (uint256) {
+        return wdiv(WAD, x);
+    }
+
+    function rpow(uint256 x, uint256 n) internal pure returns (uint256 z) {
+        z = n % 2 != 0 ? x : RAY;
+
+        for (n /= 2; n != 0; n /= 2) {
+            x = rmul(x, x);
+
+            if (n % 2 != 0) {
+                z = rmul(z, x);
+            }
+        }
+    }
+
+    //rounds to zero if x*y < WAD / 2
+    function rmul(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = ((x * y) + (RAY / 2)) / RAY;
+    }
+}
 
 contract xSigFarmV2 is
     Initializable,

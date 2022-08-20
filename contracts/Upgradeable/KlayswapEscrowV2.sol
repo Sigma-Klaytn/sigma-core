@@ -8,12 +8,107 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 
-import "../interfaces/klayswap/IVotingKSP.sol";
-import "../interfaces/klayswap/IPoolVoting.sol";
-import "../interfaces/sigma/ISigmaVoter.sol";
-import "../interfaces/klayswap/IFactory.sol";
-import "../interfaces/sigma/IFeeDistributor.sol";
-import "../interfaces/klayswap/IGovernor.sol";
+interface IVotingKSP {
+    function lockKSP(uint256 amount, uint256 lockPeriodRequested) external;
+
+    function lockedKSP(address account) external view returns (uint256);
+
+    function unlockKSP() external;
+
+    function refixBoosting(uint256 lockPeriodRequested) external;
+
+    function claimReward() external;
+
+    function getCurrentBalance(address account) external view returns (uint256);
+
+    // function compoundReward() external;
+
+    function getPriorBalance(address user, uint256 blockNumber)
+        external
+        view
+        returns (uint256);
+
+    function balanceOf(address account) external view returns (uint256);
+}
+
+interface IPoolVoting {
+    function addVoting(address exchange, uint256 amount) external;
+
+    function removeVoting(address exchange, uint256 amount) external;
+
+    function claimReward(address exchange) external;
+
+    function userVotingPoolAmount(address user, uint256 poolIndex)
+        external
+        view
+        returns (uint256);
+
+    function userVotingPoolAddress(address user, uint256 poolIndex)
+        external
+        view
+        returns (address);
+
+    function userVotingPoolCount(address user) external view returns (uint256);
+
+    function claimRewardAll() external;
+
+    function removeAllVoting() external;
+}
+
+interface ISigmaVoter {
+    function getCurrentVotes()
+        external
+        view
+        returns (
+            uint256 weightsTotal,
+            address[] memory pools,
+            uint256[] memory weights
+        );
+
+    function getUserVotesCount(address _user) external view returns (uint256);
+
+    function deleteAllPoolVoteFromXSIGFarm(address _user) external;
+}
+
+interface IFactory {
+    function exchangeKlayPos(
+        address token,
+        uint256 amount,
+        address[] memory path
+    ) external payable;
+
+    function exchangeKlayNeg(
+        address token,
+        uint256 amount,
+        address[] memory path
+    ) external payable;
+
+    function exchangeKctNeg(
+        address tokenA,
+        uint256 amountA,
+        address tokenB,
+        uint256 amountB,
+        address[] memory path
+    ) external;
+
+    function exchangeKctPos(
+        address tokenA,
+        uint256 amountA,
+        address tokenB,
+        uint256 amountB,
+        address[] memory path
+    ) external;
+}
+
+interface IFeeDistributor {
+    function depositERC20(address _token, uint256 _amount) external;
+
+    function depositKlay() external payable;
+}
+
+interface IKlayswapGovernor {
+    function castVote(uint256 proposalId, bool support) external;
+}
 
 contract KlayswapEscrowV2 is
     IERC20Upgradeable,

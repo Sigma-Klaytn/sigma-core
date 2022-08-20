@@ -71,6 +71,14 @@ contract KlayswapGovernV1 is
         uint256 endBlock
     );
 
+    /**
+        Pending : Not started yet.
+        Active : The proposal has been activated. 
+        Canceled : The proposal has been canceled.
+        Forwadable : The proposal can be forwarded to klayswap.
+        Fowarded : The proposal has been forwarded.
+        Expired : The proposal has been expired since it has not met minium quorum.
+        */
     /// @notice Possible states that a proposal may be in
     enum ProposalState {
         Pending,
@@ -423,14 +431,7 @@ contract KlayswapGovernV1 is
             proposalId > 0 && proposals[proposalId].id != 0,
             "invalid proposal id"
         );
-        /**
-        Pending : Not started yet.
-        Active : The proposal has been activated. 
-        Canceled : The proposal has been canceled.
-        Fowarded : The proposal has been forwarded.
-        Forwadable : The proposal can be forwarded to klayswap.
-        Expired : The proposal has been expired since it has not met minium quorum.
-        */
+
         Proposal storage proposal = proposals[proposalId];
         if (proposal.canceled) {
             return ProposalState.Canceled;
