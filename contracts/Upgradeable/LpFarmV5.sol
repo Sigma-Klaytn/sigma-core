@@ -123,6 +123,7 @@ contract LpFarmV5 is
     mapping(address => bool) public operators;
     ILpFarmMiningRateHelperV1 public miningRateHelper;
     IFeeDistributor public feeDistributor;
+    mapping(uint256 => uint256) public miningRateReward; // pid => amount
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -327,11 +328,16 @@ contract LpFarmV5 is
             0xC6a2Ad8cC6e4A7E08FC37cC5954be07d499E7654
         );
 
-        uint256 kspTokenBalance = ksp.balanceOf(address(this));
+        //[Update] V5 added.
+        _checkAndSaveUnseenKSP(_pid);
 
-        if (kspTokenBalance > 0) {
-            feeDistributor.depositERC20(address(ksp), kspTokenBalance);
+        uint256 kspAmountToForward = miningRateReward[_pid];
+
+        if (kspAmountToForward > 0) {
+            feeDistributor.depositERC20(address(ksp), kspAmountToForward);
         }
+
+        miningRateReward[_pid] = 0;
     }
 
     /**
@@ -414,6 +420,9 @@ contract LpFarmV5 is
 
         _updateBoostWeight(msg.sender, _pid);
 
+        //[Update] V5 added.
+        _checkAndSaveUnseenKSP(_pid);
+
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -451,6 +460,10 @@ contract LpFarmV5 is
         _updateBoostWeight(msg.sender, _pid);
 
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
+
+        //[Update] V5 added.
+        _checkAndSaveUnseenKSP(_pid);
+
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
@@ -744,6 +757,27 @@ contract LpFarmV5 is
             (erc20Reward * 1e36) /
             totalBoostWeight;
         pool.boostLastRewardBlock = block.number;
+    }
+
+    /**
+        @notice [Update] V5 added function
+     */
+
+    function _checkAndSaveUnseenKSP(uint256 _pid) internal {
+        uint256 totalKSP = 0;
+        for (uint256 i = 0; i < poolInfo.length; i++) {
+            totalKSP += miningRateReward[i];
+        }
+
+        IERC20Upgradeable ksp = IERC20Upgradeable(
+            0xC6a2Ad8cC6e4A7E08FC37cC5954be07d499E7654
+        );
+
+        uint256 KSPBalance = ksp.balanceOf(address(this));
+
+        if (totalKSP < KSPBalance) {
+            miningRateReward[_pid] += KSPBalance - totalKSP;
+        }
     }
 
     function _sqrt(uint256 y) internal pure returns (uint256 z) {
