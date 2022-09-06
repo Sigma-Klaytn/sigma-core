@@ -241,7 +241,7 @@ contract LockdropLpFarmProxyV2 is
     }
 
     /**
-     @notice [Update] V5 added function.
+     @notice [Update] V2 added function.
      */
     modifier onlyOperator() {
         require(operators[msg.sender], "This address is not an operator");

@@ -28,32 +28,28 @@ interface ILpFarm {
     ) external;
 }
 
-// [Update] V5 appended interface
 interface ILpFarmMiningRateHelperV1 {
     function updateUserReward(uint256 _pid, address _user) external;
 
     function claimReward(uint256 _pid, address _user) external;
 }
 
-// [Update] V5 appended interface
 interface IKlayswapSinglePool {
     function claimReward() external;
 }
 
-// [Update] V5 appended interface
 interface IFeeDistributor {
     function depositERC20(address _token, uint256 _amount) external;
 }
 
-// Farm distributes the sig rewards based on staked LP to each user.
-// Updated on 2022. 9. 2 (FRI)
+// Updated on 2022. 9. 6
 //
 // Cloned from https://github.com/SashimiProject/sashimiswap/blob/master/contracts/MasterChef.sol
 // Modified by LTO Network to work for non-mintable sig.
 // Modified by Sigma to work for boosted rewards with vxSIG.
 /// @notice variable name with prefix "boost" means that's related to boost reward. Others are related to base reward.
 /// changed Few variables added, UserInfo struct, few functions added.
-contract LpFarmV5 is
+contract LpFarmV6 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
@@ -119,7 +115,6 @@ contract LpFarmV5 is
     /// @notice pool index of sigKSP - KSP
     uint256 public constant LOCKDROP_POOL_INDEX = 1;
 
-    /// @notice [Update] V5 appended value
     mapping(address => bool) public operators;
     ILpFarmMiningRateHelperV1 public miningRateHelper;
     IFeeDistributor public feeDistributor;
@@ -313,9 +308,6 @@ contract LpFarmV5 is
         _unpause();
     }
 
-    /**
-        @notice [Update] V5 appended function
-     */
     function claimMiningRewardAndForward(uint256 _pid)
         external
         onlyOperator
@@ -328,7 +320,6 @@ contract LpFarmV5 is
             0xC6a2Ad8cC6e4A7E08FC37cC5954be07d499E7654
         );
 
-        //[Update] V5 added.
         _checkAndSaveUnseenKSP(_pid);
 
         uint256 kspAmountToForward = miningRateReward[_pid];
@@ -341,7 +332,6 @@ contract LpFarmV5 is
     }
 
     /**
-     @notice [Update] V5 added function.
      @notice Set operator to run functions.
      @param _operators list of operator to give an authority.
      */
@@ -352,7 +342,6 @@ contract LpFarmV5 is
     }
 
     /**
-     @notice [Update] V5 added function.
      @notice Revoke authority to run functions.
      @param _operator : operator to revoke permission from.
      */
@@ -773,10 +762,6 @@ contract LpFarmV5 is
         pool.boostLastRewardBlock = block.number;
     }
 
-    /**
-        @notice [Update] V5 added function
-     */
-
     function _checkAndSaveUnseenKSP(uint256 _pid) internal {
         uint256 totalKSP = 0;
         for (uint256 i = 0; i < poolInfo.length; i++) {
@@ -951,9 +936,6 @@ contract LpFarmV5 is
         }
     }
 
-    /**
-     @notice [Update] V5 added function.
-     */
     modifier onlyOperator() {
         require(operators[msg.sender], "This address is not an operator");
         _;
