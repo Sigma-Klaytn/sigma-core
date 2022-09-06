@@ -73,7 +73,7 @@ contract LockdropLpFarmProxyV2 is
     }
 
     /**
-     @notice [Update] V5 added function.
+     @notice [Update] V2 added function.
      @notice sets feeDistributor Address of the contract.
      */
     function setFeeDistributor(address _feeDistributor) external onlyOwner {
