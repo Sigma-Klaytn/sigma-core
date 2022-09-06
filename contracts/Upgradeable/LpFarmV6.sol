@@ -572,6 +572,10 @@ contract LpFarmV5 is
             "This function should be called from lockdrop proxy."
         );
 
+        //[Update] V6 added.
+        miningRateHelper.updateUserReward(LOCKDROP_POOL_INDEX, _user);
+        miningRateHelper.claimReward(LOCKDROP_POOL_INDEX, _user);
+
         PoolInfo storage pool = poolInfo[LOCKDROP_POOL_INDEX];
         UserInfo storage user = userInfo[LOCKDROP_POOL_INDEX][_user];
         _updatePool(LOCKDROP_POOL_INDEX);
@@ -596,6 +600,9 @@ contract LpFarmV5 is
 
         _updateBoostWeight(_user, LOCKDROP_POOL_INDEX);
 
+        //[Update] V6 added.
+        _checkAndSaveUnseenKSP(LOCKDROP_POOL_INDEX);
+
         emit LockdropDeposit(msg.sender, _amount);
     }
 
@@ -614,6 +621,10 @@ contract LpFarmV5 is
             "You already claimed Lockdrop LPToken."
         );
 
+        //[Update] V6 added.
+        miningRateHelper.updateUserReward(LOCKDROP_POOL_INDEX, msg.sender);
+        miningRateHelper.claimReward(LOCKDROP_POOL_INDEX, msg.sender);
+
         PoolInfo storage pool = poolInfo[LOCKDROP_POOL_INDEX];
 
         _updatePool(LOCKDROP_POOL_INDEX);
@@ -631,6 +642,9 @@ contract LpFarmV5 is
         user.rewardDebt = (user.amount * pool.accERC20PerShare) / 1e36;
 
         _updateBoostWeight(msg.sender, LOCKDROP_POOL_INDEX);
+
+        //[Update] V6 added.
+        _checkAndSaveUnseenKSP(LOCKDROP_POOL_INDEX);
 
         emit WithdrawLockdropLP(msg.sender, user.lockdropAmount);
     }
