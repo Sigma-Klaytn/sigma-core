@@ -54,12 +54,6 @@ contract SigmaGovernorV1 is
         bool canceled;
     }
 
-    /**
-        Succeded : Proposal has passed.
-        Defeated : Proposal has failed.
-        Expired : Proposal didn't meet the quorum and failed to pass.
-        */
-    /// @notice Possible states that a proposal may be in
     struct ProposalResult {
         /// @notice result of the proposal
         Result result;
@@ -97,6 +91,12 @@ contract SigmaGovernorV1 is
         Ended
     }
 
+    /**
+        Succeded : Proposal has passed.
+        Defeated : Proposal has failed.
+        Expired : Proposal didn't meet the quorum and failed to pass.
+        */
+    /// @notice Possible states that a proposal may be in
     enum Result {
         Succedeed, // Pass the quorum, and For > Against.
         Defeated, // Passed the quorum, but For <= Against.
