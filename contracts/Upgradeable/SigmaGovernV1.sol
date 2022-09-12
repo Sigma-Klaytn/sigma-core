@@ -13,8 +13,8 @@ interface IvxERC20 {
     function balanceOf(address account) external view returns (uint256);
 }
 
-/// @notice SigmaGovernorV1 contract is for collect user's opinions and serve them.
-contract SigmaGovernorV1 is
+/// @notice SigmaGovernV1 contract is for collect user's opinions and serve them.
+contract SigmaGovernV1 is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
