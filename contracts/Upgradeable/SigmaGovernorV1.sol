@@ -38,6 +38,8 @@ contract SigmaGovernorV1 is
         bool canceled;
         /// @notice Receipts of ballots for the entire set of voters
         mapping(address => Receipt) receipts;
+        /// @notice latest updated vxSIG Total Supply. This is how quorum satisfaction is going to be calculated.
+        uint256 lastestVxSIGTotalSupply;
         /// @notice Result of the proposal
         ProposalResult result;
     }
@@ -59,8 +61,6 @@ contract SigmaGovernorV1 is
         Result result;
         /// @notice block number when the contract ended.
         uint256 endBlockNubmer;
-        /// @notice vxSIG Total Balance at the moment.
-        uint256 vxSIGTotalBalance;
     }
 
     event InitialInfoSet(
@@ -113,9 +113,6 @@ contract SigmaGovernorV1 is
 
     /// @notice An event emitted when a proposal has been canceled
     event ProposalCanceled(uint256 id);
-
-    /// @notice An event emitted when a proposal has been executed in the Timelock
-    event ProposalExecuted(uint256 id);
 
     /// @notice The name of this contract
     string public constant name = "Sigma Govern";
@@ -255,6 +252,7 @@ contract SigmaGovernorV1 is
         newProposal.startBlock = _startBlock;
         newProposal.endBlock = _startBlock + votingPeriod;
         newProposal.proposer = _proposer;
+        newProposal.lastestVxSIGTotalSupply = vxSIG.totalSupply();
 
         proposalList.push(id);
         emit ProposalAdded(id, _startBlock, newProposal.endBlock, _proposer);
@@ -275,14 +273,13 @@ contract SigmaGovernorV1 is
             "This proposal has been already finalized."
         );
 
-        // Set result : endBlocknumber, totalVxSIG
+        // Set result : endBlocknumber
         result.endBlockNubmer = block.number;
-        result.vxSIGTotalBalance = vxSIG.totalSupply();
 
         // If that pass the minimum participation rate
         if (quorumVotes != 0) {
             uint256 totalVotes = proposal.forVotes + proposal.againstVotes;
-            uint256 vxSIGTotalSupply = vxSIG.totalSupply() / 1e18;
+            uint256 vxSIGTotalSupply = proposal.lastestVxSIGTotalSupply / 1e18;
             uint256 votePercentage = ((totalVotes * 1e18 * 100) /
                 vxSIGTotalSupply) / 1e18;
 
@@ -345,6 +342,8 @@ contract SigmaGovernorV1 is
                         );
                     }
                     receipt.canceled = true;
+
+                    proposal.lastestVxSIGTotalSupply = vxSIG.totalSupply();
                 }
             }
 
@@ -386,6 +385,8 @@ contract SigmaGovernorV1 is
         receipt.votes = votes;
 
         userVoteList[voter].push(proposalId);
+
+        proposal.lastestVxSIGTotalSupply = vxSIG.totalSupply();
 
         emit VoteCast(voter, proposalId, support, votes);
     }
@@ -454,11 +455,7 @@ contract SigmaGovernorV1 is
     function getProposalResult(uint256 _proposalId)
         external
         view
-        returns (
-            Result,
-            uint256,
-            uint256
-        )
+        returns (Result, uint256)
     {
         require(
             state(_proposalId) == ProposalState.Ended,
@@ -471,7 +468,7 @@ contract SigmaGovernorV1 is
             "Proposal has not been officially ended by the admin. Please call finalizeProposal()"
         );
 
-        return (result.result, result.endBlockNubmer, result.vxSIGTotalBalance);
+        return (result.result, result.endBlockNubmer);
     }
 
     function isProposalFinalized(uint256 _proposalId)
@@ -479,6 +476,10 @@ contract SigmaGovernorV1 is
         view
         returns (bool)
     {
+        require(
+            _proposalId > 0 && proposals[_proposalId].id != 0,
+            "invalid proposal id"
+        );
         Proposal storage proposal = proposals[_proposalId];
         ProposalResult memory result = proposal.result;
         if (result.endBlockNubmer > 0) {
