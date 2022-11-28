@@ -118,7 +118,11 @@ interface IEcoPotVoting {
     function claimRewardAll() external;
 }
 
-contract KlayswapEscrowV3 is
+interface IDropBox {
+    function claim(address drop) external;
+}
+
+contract KlayswapEscrowV4 is
     IERC20Upgradeable,
     Initializable,
     UUPSUpgradeable,
@@ -584,5 +588,26 @@ contract KlayswapEscrowV3 is
      */
     function ecopotClaimRewardAll() external onlyOperator {
         klayswapEcopotVoting.claimRewardAll();
+    }
+
+    // DROPS RELATED FUNCTIONS
+
+    /**
+     @notice [V4 ADDED] claim drops token and send to operator
+     @param _dropboxAddr Dropbox address
+     @param _airdropToken Airdrop Token Address
+     @param _dropsEntryAddr Drops Entry Address
+     @param _beneficiary Beneficiary address 
+     */
+    function claimDropsTokensTo(
+        address _dropboxAddr,
+        IERC20Upgradeable _airdropToken,
+        address _dropsEntryAddr,
+        address _beneficiary
+    ) external onlyOwner {
+        IDropBox(_dropboxAddr).claim(_dropsEntryAddr);
+
+        uint256 tokenBalance = _airdropToken.balanceOf(address(this));
+        _airdropToken.transfer(_beneficiary, tokenBalance);
     }
 }
