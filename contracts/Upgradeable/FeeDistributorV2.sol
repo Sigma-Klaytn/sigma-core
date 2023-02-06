@@ -70,7 +70,7 @@ interface IKlayswapEscrow {
     function depositKSP(uint256 _amount) external;
 }
 
-contract FeeDistributorV1 is
+contract FeeDistributorV2 is
     Initializable,
     OwnableUpgradeable,
     UUPSUpgradeable
@@ -359,6 +359,11 @@ contract FeeDistributorV1 is
     function depositKlay() external payable {
         uint256 _amount = msg.value;
         require(_amount > 0, "Deposit Amount should be bigger than 0");
+    }
+
+    //@param _amount uint is 10^18
+    function depositKSP(uint256 _amount) external {
+        klayswapEscrow.depositKSP(_amount);
     }
 
     // Modifier

@@ -123,7 +123,7 @@ contract SigKSPStakingV2 is
     /**
     @notice sets sigKSP reward info to contract
      */
-    function setSigKSPInitialInfo(address _sigKSPAddr) external onlyOwner {
+    function setSigKSP(address _sigKSPAddr) external onlyOwner {
         sigksp_rewardToken = _sigKSPAddr;
     }
 
@@ -413,7 +413,6 @@ contract SigKSPStakingV2 is
     /**
         @notice [V2 UPDATED]
      */
-
     function sigksp_updateRewardAmount(uint256 _amount)
         external
         onlyRewardsDistribution
